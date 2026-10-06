@@ -1,117 +1,160 @@
 # Architecture
 
-Status: design only, no code yet. Everything here is a plan and may change after the open questions in `docs/RESEARCH.md` are answered.
+Status: design locked, no code yet. Every external dependency below was verified on Oct 6, 2026 (evidence in `docs/RESEARCH.md`, rationale in `docs/DECISIONS.md`).
 
 ## Overview
 
 ```
-[Static frontend: Vercel or IPFS] --reads--> BSC RPC (Venus Comptroller, ResilientOracle, PancakeSwap quoter)
-        | user signs: updateDelegate + setPolicy
-        v
-[GuardianVault.sol] <-- protect(user) -- anyone / Keeper Agent (BNB Agent Studio, ERC-8004 identity)
-        | flash loan USDT (Lista) -> repayBorrowBehalf -> redeemUnderlyingBehalf -> swap (PancakeSwap v3) -> repay flash loan
-        v
-   event Protected(user, sold, repaid, hfBefore, hfAfter, fee, keeper)
+[Static frontend: Vercel or IPFS]
+   reads:  BSC RPC (Venus Comptroller, ResilientOracle, PancakeSwap QuoterV2)
+           data-api.binance.vision klines (historical gaps, CORS *)
+   writes (user wallet): comptroller.updateDelegate, guardian.setPolicy, vUSDT.borrow (user's own borrow)
+   optional "keeper tab": polls canProtect and sends protect() from the connected wallet
 
-[Wallet Skill "guardian"] -- natural language -> builds policy txs, reads status, revokes
+[GuardianVault.sol]  <-- protect(user) from anyone: third-party bots, keeper tab, Wallet Skill, keeper script
+   Lista Moolah flashLoan(USDT) -> vUSDT.repayBorrowBehalf(user) -> vBStock.redeemUnderlyingBehalf(user)
+   -> PancakeSwap v3 exactInputSingle(bStock -> USDT) -> repay flash loan -> fees -> leftover repays more debt
+
+[Wallet Skill "gap-guardian"]  natural language -> baw contract-call preview/execute (BSC, chain 56)
+[keeper/ script]                open-source Node script anyone can run; not required by the protocol
 ```
 
-No backend. The only off-chain actors are the user's browser, permissionless keepers, and an agent hosted on BNB Agent Studio.
+There is no server we operate. Every off-chain piece is optional and replaceable because `protect` is permissionless and validates everything on-chain.
+
+## Verified external contracts (BSC mainnet)
+
+| Item | Address | Notes |
+|---|---|---|
+| Venus Core Pool Comptroller (Diamond) | `0xfD36E2c2a6789Db23113685031d7F16329158384` | `updateDelegate`, `getAccountLiquidity` (LT-weighted) |
+| Venus ResilientOracle | `0x6592b5DE802159F3E74B2486b091D11a8256ab8A` | `getPrice(asset)`, `getUnderlyingPrice(vToken)` |
+| vUSDT | `0xfD5840Cd36d94D7229439859C0112a4185BC0255` | `repayBorrowBehalf` |
+| USDT (BSC-USD, 18 decimals) | `0x55d398326f99059fF775485246999027B3197955` | |
+| TSLAB / vTSLAB | `0x5b1910eAaD6450E50f816082Aa078C41F10C292f` / `0x97421799419Eb782628e73e7220d8E0A207469a3` | CF 60%, LT 70% |
+| NVDAB / vNVDAB | `0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436` / `0xEb8Ca841cBe1BC4832A10b15c7dAB1081eDaD371` | CF 60%, LT 70% |
+| SPCXB / vSPCXB | `0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1` / `0xC36dFaCc7a125859C106F29b9F2d874CCF29A55A` | CF 50%, LT 65% |
+| Lista Moolah (flash loan source) | `0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C` | `flashLoan(token, assets, data)`, no fee, ~2.36M USDT |
+| PancakeSwap v3 factory | `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865` | |
+| TSLAB/USDT v3 pool, fee 2500 | `0xB0f5E5400E8F0F7C242F2b7740C004f020579c41` | ~$1.96M liquidity |
+| NVDAB/USDT v3 pool, fee 2500 | `0x8FB4243b553aC29BA088aCf00B9B7dA24bD6690C` | ~$4.58M liquidity |
+| SPCXB/USDT v3 pool, fee 2500 | `0x977DaFFC095b33872E2741c19568925015C35b4d` | ~$1.90M liquidity |
+| bStock beacon / implementation | `0x156d6dce9a4f6139a3406f1f021f1a4880de93a3` / `0xCFEd6c4679297ea4889F8183bC057B4A86C64e46` | shared by all three |
+| bStock compliance | `0x53dBa7AaBDe774787A1F57236B235567dA8e14F4` | deny list only |
+| bStock PauseManager | `0x9fc74Be63f3589485B2423984a7a0557e0CF700a` | can halt all transfers |
+| PancakeSwap v3 SwapRouter | `0x1b81D678ffb9C0263b24A97847620C99d213eB14` | `factory()` matches the factory above |
+| PancakeSwap v3 QuoterV2 | `0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997` | used by the frontend for previews |
+
+Quote check (Oct 6): selling 1 TSLAB returned 379.47 USDT and selling 10 TSLAB returned 3,794.00 USDT, against an oracle price of 381.37. Price impact is negligible at this size, but execution sits about 0.5% under the oracle (0.25% pool fee plus the pool trading slightly below the oracle). The default `maxSlippageBps` should therefore be at least 100 (1%).
 
 ## Contracts
 
 ### GuardianVault (singleton, immutable)
 
 Requirements:
-- No proxy, no owner, no admin keys, no upgrade path.
-- **No code path that calls `borrow` or `borrowBehalf`.** Venus delegation also grants borrowing rights, so this must be provable by reading the code.
-- No arbitrary external calls. Router, flash loan source and Venus addresses are fixed at deploy time.
+- No proxy, no owner, no admin keys, no upgrade path. Fee recipient and fee rates are constructor constants.
+- **No code path that calls `borrow` or `borrowBehalf`.** Venus delegation also grants borrowing rights, so this must be provable by reading the code. Enforced by a test that scans the bytecode for the borrow selectors.
+- No arbitrary external calls. Every target address is an immutable.
+- Works in **raw token units** everywhere. bStocks implement EIP-8056 scaled UI amounts, and NVDAB already has a `uiMultiplier` of 1.000778. Venus, the oracle and the DEX all use raw units.
 - Small enough to audit by eye (target under 300 lines for the core).
 
-Storage per user:
+Per-user policy:
 
 ```solidity
 struct Policy {
-    uint64  minHF;            // 1e4 precision, e.g. 11500 = 1.15
-    uint64  targetHF;         // do not sell beyond this
-    uint64  weekendTargetHF;  // target used by the market clock trigger
-    uint16  maxSlippageBps;   // vs Venus oracle price
-    uint16  keeperTipBps;     // capped by a global max
-    uint40  expiry;
-    address[] collateral;     // vTokens the guardian may redeem
-    address debtVToken;       // e.g. vUSDT
+    uint16 minHealthBps;        // e.g. 12000 = 1.20, health trigger
+    uint16 targetHealthBps;     // e.g. 14000 = 1.40, restore point for the health trigger
+    uint16 weekendHealthBps;    // e.g. 16000 = 1.60, restore point before a market close
+    uint16 maxSlippageBps;      // vs Venus oracle price, capped globally (e.g. 300)
+    uint40 expiry;
+    address[] sellable;         // vTokens (bStock markets only) the guardian may redeem, in priority order
 }
 ```
 
-Core functions:
-- `setPolicy(Policy)`, `clearPolicy()`
-- `protect(address user, address vCollateral, uint256 repayAmount)`, permissionless
-- `canProtect(address user) view` returns the trigger reason and a suggested amount, used by keepers and the UI
+Functions:
+- `setPolicy(Policy)` and `clearPolicy()`.
+- `canProtect(address user) view returns (Trigger reason, address vCollateral, uint256 repayAmount)`. Used by keepers and the UI.
+- `protect(address user)`, permissionless. **The caller passes only the user.** The contract computes the trigger, which collateral to sell and how much, so a caller cannot choose harmful parameters.
+
+Health is defined as LT-weighted collateral divided by debt. It is computed from `getAccountLiquidity` (which returns liquidity or shortfall), plus total debt valued with the same oracle.
 
 `protect` flow, all in one transaction:
-1. Check the trigger. Either health below `minHF`, or the market clock window is open and health is below `weekendTargetHF`.
-2. Flash loan `repayAmount` USDT from Lista Moolah (free) or a PancakeSwap v3 flash.
-3. `vDebt.repayBorrowBehalf(user, repayAmount)`.
-4. `vCollateral.redeemUnderlyingBehalf(user, collateralAmount)`. The underlying is sent to the Guardian (msg.sender of the redeem).
-5. Swap the collateral to USDT on PancakeSwap v3, with `minOut` taken from the Venus oracle price minus `maxSlippageBps`.
-6. Repay the flash loan, take the protocol fee and the keeper tip, and use any leftover USDT to repay more of the user's debt.
-7. Post-checks:
-   - health after is at least health before
-   - health after does not exceed `targetHF` by more than a small tolerance (no over-selling)
-   - the user's total debt did not increase
+1. Check the trigger:
+   - health is below `minHealthBps` (target `targetHealthBps`), or
+   - `MarketClock.inPreCloseWindow(block.timestamp)` and health is below `weekendHealthBps`.
+2. Compute the repay amount `x` that brings health to the target, using the closed form `(W - LT*x) / (D - x) = target`, and cap it by the collateral available in `sellable`.
+3. `Moolah.flashLoan(USDT, x, data)`. Inside `onMoolahFlashLoan`:
+   1. `vUSDT.repayBorrowBehalf(user, x)`.
+   2. `vBStock.redeemUnderlyingBehalf(user, c)`, where `c` is the collateral worth `x` plus fees plus slippage at the oracle price. The underlying arrives at the guardian.
+   3. Swap `c` bStock for USDT on the fee 2500 pool, with `amountOutMinimum` set to the oracle value minus `maxSlippageBps`.
+   4. Approve Moolah to pull back `x`.
+   5. Pay the protocol fee and the keeper tip. Any leftover USDT goes to `repayBorrowBehalf(user)`.
+4. Post-checks:
+   - health after is at least health before;
+   - health after is at most target plus a tolerance (no over-selling);
+   - the user's total borrow balance went down;
+   - the guardian holds no leftover user funds.
+5. Emit `Protected(user, reason, vCollateral, soldRaw, repaid, healthBefore, healthAfter, fee, tip, keeper)`.
 
-Order matters. Venus `redeemAllowed` uses the collateral factor (stricter than the liquidation threshold), so a position close to liquidation cannot redeem first. It must repay first, which is why the flash loan is needed.
+Why this order: Venus `redeemAllowed` uses the collateral factor, which is stricter than the liquidation threshold, so a position near liquidation cannot redeem first. Venus's own flash loans are allowlisted by governance (`authorizedFlashLoan`), so we use Lista Moolah, which is permissionless and free.
+
+Failure behavior:
+- If the bStock is paused, or the guardian is blocklisted by the issuer's compliance contract, `protect` reverts with a clear custom error. `canProtect` surfaces it so the UI can explain it.
+- If the DEX price is worse than the oracle by more than `maxSlippageBps`, the swap reverts. Around the market open the oracle can lag the DEX by up to one hour (hourly updates). In that window Venus liquidations use the same lagging oracle, so the user is not liquidated either, and the next oracle update re-arms the trigger.
 
 ### MarketClock (library)
 
-- Computes whether NYSE is open from `block.timestamp`.
-- Handles US DST rules (second Sunday of March to first Sunday of November) and a hard-coded holiday table for 2026 and 2027, including early closes.
-- Exposes `nextClose(ts)` and `isPreCloseWindow(ts, window)`.
-- Fully on-chain and deterministic, so keepers cannot lie about market state.
+- `isOpen(ts)`, `nextClose(ts)`, `inPreCloseWindow(ts)` (default window: 60 minutes before a close that is followed by at least one full closed day: weekends, holidays, and early closes before a holiday weekend).
+- Regular session 09:30 to 16:00 ET. US DST runs from the second Sunday of March to the first Sunday of November.
+- Hard-coded NYSE calendar, verified against nyse.com:
+  - **2026 holidays**: Jan 1, Jan 19, Feb 16, Apr 3, May 25, Jun 19, Jul 3, Sep 7, Nov 26, Dec 25. **Early closes** (13:00 ET): Nov 27, Dec 24.
+  - **2027 holidays**: Jan 1, Jan 18, Feb 15, Mar 26, May 31, Jun 18, Jul 5, Sep 6, Nov 25, Dec 24. **Early close**: Nov 26.
+- After 2027 the clock falls back to weekends only (documented limitation, and the contract is immutable).
 
-### ListaAdapter (phase 2)
+## Keeper layer (no backend)
 
-The same flow against Lista Moolah, using `setAuthorization` and Moolah's own `repay`, `withdrawCollateral` and `flashLoan`.
+1. **Permissionless `protect`** with a 0.1% tip. Any BSC bot can earn it, and execution is fully validated on-chain.
+2. **Keeper tab in the frontend.** While open, it polls `canProtect` for users with active policies (discovered from `PolicySet` events) and sends `protect` from the connected wallet, earning the tip.
+3. **Wallet Skill.** The user's own AI agent with the Binance Agentic Wallet can call `canProtect` and `protect` through `baw contract-call`. Scheduling depends on the agent host (for example a recurring task in the user's agent).
+4. **`keeper/` script.** A small open-source Node script, documented so anyone (including the user) can run it on their own machine. It is not part of the protocol and not a service we host.
 
-## Keeper layer
+Rejected options (details in `docs/DECISIONS.md`):
+- Gelato automation: shut down on Mar 31, 2026.
+- Chainlink Automation: v2.1 sunset Jul 31, 2026, with no activity on the BSC registry. Its replacement CRE needs Early Access approval.
+- BNB Agent Studio: mainnet means our own AWS or Azure runtime, and it is request-driven with no scheduler.
 
-1. **Permissionless**: anyone can call `protect` and earn the tip. Same economics as liquidators, so the system survives without us.
-2. **Keeper Agent on BNB Agent Studio**: watches `PolicySet` events, polls `canProtect`, calls `protect` and earns tips. It has an ERC-8004 identity and an ERC-8183 task interface, so other agents can ask it to protect a position. Target for the Agent Studio prize.
-3. **Wallet Skill**: a Skill for Binance Agentic Wallet with these intents:
-   - protect a position
-   - show status
-   - simulate a gap
-   - revoke
+## Wallet Skill: `gap-guardian`
 
-   It builds the `updateDelegate` and `setPolicy` transactions. Target for the Agentic Wallet prize.
+Follows the Binance Skills Hub format (`SKILL.md` with `name`, `description`, `version`, `license` frontmatter plus `references/`). It depends on the `binance-agentic-wallet` skill and its `baw` CLI.
+
+Intents:
+
+| Intent | Calls |
+|---|---|
+| Show my bStock loans and headroom | Read-only RPC calls |
+| Protect my position with policy X | `baw contract-call` for `updateDelegate(guardian, true)` and `setPolicy(...)` |
+| Check if anything needs protection / run protection | `canProtect`, then `protect` |
+| Stop protecting | `clearPolicy`, then `updateDelegate(guardian, false)` |
+
+Constraints from the Agentic Wallet:
+- External contract calls need Developer Mode, enabled in the Binance App.
+- Every call goes through `preview` with a risk check, then `execute`. A brand-new contract might be flagged as risky, so the guardian must be source-verified.
+- The skill must follow the hub's neutral language rules (no promotion of assets).
 
 ## Frontend
 
-Static app, all reads straight from chain:
-1. **Position scan**: Venus and Lista positions, health factor, distance to liquidation per collateral.
-2. **Gap Simulator**: replays real historical weekend and overnight gaps (from bStock candles or Binance Market API K-lines) against the user's actual position.
-3. **Guardian setup and history**: policy form, approve and revoke, and a list of `Protected` events linked to BscScan.
+Static app (Next.js static export or Vite), all reads from chain:
+1. **Position and headroom.** Venus positions via `getAssetsIn`, `getAccountSnapshot` and `getAccountLiquidity`. Health, liquidation drop, and extra borrow at health 1.3, 1.4 and 1.5.
+2. **Gap Simulator.** Hourly candles from `data-api.binance.vision` (TSLABUSDT, NVDABUSDT, SPCXBUSDT, history since Jun 11, 2026, CORS `*`). It measures real pre-close to post-open moves and replays them against the user's position, with and without the guardian.
+3. **Guardian setup and history.** Policy form, delegate and revoke, `Protected` events with BscScan links, and the keeper tab toggle.
 
-Optional data from the Binance Web3 RWA API (market status, corporate action codes) only if it is callable from the browser (CORS). On-chain data stays the source of truth.
+The Binance Web3 RWA API (`www.binance.com/bapi/...`) is not used by the frontend. It is unreachable from Indonesian ISPs without a VPN and its CORS policy is unverified. It may be used inside the Wallet Skill.
 
 ## Testing plan
 
-- Foundry fork tests against BSC mainnet state, using real Venus markets and real PancakeSwap pools.
-- Invariant tests:
-  - user debt never increases
-  - no borrow is ever executed
-  - health never decreases after `protect`
-- MarketClock unit tests across DST switches and holidays.
-- A live mainnet demo with a small real position.
-
-## Key addresses (BSC mainnet)
-
-| Item | Address |
-|---|---|
-| Venus Core Pool Comptroller | `0xfD36E2c2a6789Db23113685031d7F16329158384` |
-| TSLAB / vTSLAB | `0x5b1910eAaD6450E50f816082Aa078C41F10C292f` / `0x97421799419Eb782628e73e7220d8E0A207469a3` |
-| NVDAB / vNVDAB | `0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436` / `0xEb8Ca841cBe1BC4832A10b15c7dAB1081eDaD371` |
-| SPCXB / vSPCXB | `0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1` / `0xC36dFaCc7a125859C106F29b9F2d874CCF29A55A` |
-| bStock compliance contract | `0x53dBa7AaBDe774787A1F57236B235567dA8e14F4` |
-
-Verify every address again before deploying.
+- Foundry fork tests against BSC mainnet. **This needs an archive RPC** (free public RPCs keep only about 7 minutes of state). Plan: a NodeReal MegaNode free key in `.env`, never committed.
+- Invariants:
+  - user debt never increases;
+  - no borrow selector exists in the bytecode;
+  - health never decreases after `protect`;
+  - the guardian never holds a balance after a transaction.
+- MarketClock unit tests across DST switches, every 2026 and 2027 holiday, and the early closes.
+- Live mainnet run with a small real position before recording the demo.
