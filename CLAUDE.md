@@ -25,11 +25,11 @@ Read these before doing anything:
 ## Current status (2026-10-06)
 
 - Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 19 tests (unit plus mainnet fork) passing.
-- Deploy script ready (`contracts/script/Deploy.s.sol`, dry run passes against live mainnet, ~0.00018 BNB). Real broadcast waits for the user's keystore account `halyard-deployer`.
+- **Deployed:** HalyardVault `0x6137aCd41F9828dE0836EA5a776e95184bF7Df10` on BSC mainnet (block 126043949), verified exact match on Sourcify and BscScan. Address and start block are in `contracts/deployments/56.json`. It is immutable, so a contract change means a new deployment and a new address.
 - Next step: the static frontend, then the Wallet Skill.
 - Blocked on the user for:
   1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
-  2. A funded mainnet wallet (BNB for gas plus a small bStock and USDT position) for the live demo.
+  2. Deployer keystore `halyard-deployer` (`0x18E3fe26452ca4320a6C5365D349598cd855EeD7`, also the fee recipient) exists and is funded. A small bStock plus USDT position for the live demo is still needed.
   3. A VPN when testing the `baw` CLI or Binance APIs (Binance domains are ISP-blocked in Indonesia).
   4. Developer Mode enabled in the Binance App for the Agentic Wallet `contract-call` flow.
 

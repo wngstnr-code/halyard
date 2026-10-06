@@ -1,6 +1,9 @@
 # Architecture
 
-Status: contracts implemented in `contracts/` (HalyardVault, MarketClock), 19 tests passing including mainnet fork tests. Every external dependency below was verified on Oct 6, 2026 (evidence in `docs/RESEARCH.md`, rationale in `docs/DECISIONS.md`).
+Status: **HalyardVault is live on BSC mainnet** at [`0x6137aCd41F9828dE0836EA5a776e95184bF7Df10`](https://bscscan.com/address/0x6137aCd41F9828dE0836EA5a776e95184bF7Df10#code).
+- Deployed Oct 6, 2026 in block 126043949, tx `0x9dbc7423...8fe0`.
+- Source verified as an exact match on Sourcify and BscScan.
+- 21 tests pass, including the mainnet fork tests. Every external dependency below was verified on Oct 6, 2026 (evidence in `docs/RESEARCH.md`, rationale in `docs/DECISIONS.md`).
 
 ## Overview
 

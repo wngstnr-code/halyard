@@ -19,9 +19,13 @@ Built for [BNB Hack: Tokenized Stocks Edition](https://www.bnbchain.org/en/hacka
 
 ## Status
 
-Design locked, implementation next. See:
+- **HalyardVault on BSC mainnet:** [`0x6137aCd41F9828dE0836EA5a776e95184bF7Df10`](https://bscscan.com/address/0x6137aCd41F9828dE0836EA5a776e95184bF7Df10#code) (source verified).
+- **In progress:** frontend and Wallet Skill.
+
+See:
 - [docs/HACKATHON.md](docs/HACKATHON.md) for the hackathon rules
 - [docs/IDEA.md](docs/IDEA.md) for the product
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the technical design
 - [docs/RESEARCH.md](docs/RESEARCH.md) for the verified data behind it
 - [docs/DECISIONS.md](docs/DECISIONS.md) for settled design decisions
+- [contracts/README.md](contracts/README.md) to test and deploy the contracts
