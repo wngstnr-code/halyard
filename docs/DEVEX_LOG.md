@@ -41,3 +41,11 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 
 - **NodeReal onboarding took about 5 minutes** (GitHub login, Create Now, BSC RPC endpoint). It was the first RPC that let us fork BSC reliably.
 - A cold Anvil fork needs about 52 s for one Venus `getAccountLiquidity` call, because the Diamond Comptroller loops over every market and each storage slot is a separate archive request. The default `cast` timeout of 45 s fails on it with `operation timed out`. `--rpc-timeout 300` fixes it.
+
+## 2026-10-06 (contracts)
+
+- **Venus per-user pools.** The Core Pool Comptroller now has `userPoolId` and `getEffectiveLtvFactor(account, vToken, weighting)`. Reading `markets(vToken).liquidationThresholdMantissa` alone would be wrong for users in a non-zero pool. This is only discoverable from `ComptrollerLens.sol`.
+- **Venus still returns error codes.** `repayBorrowBehalf` and `redeemUnderlyingBehalf` return a uint error code instead of reverting on some failures. Integrators who forget to check the return value can silently continue after a failed repay.
+- **PancakeSwap v3 router variants.** The BSC SwapRouter at `0x1b81...eB14` uses the `exactInputSingle` struct with a `deadline` field (selector `0x414bf389`), not the SwapRouter02 layout. We confirmed it by grepping the deployed bytecode for both selectors.
+- **The first fork test run took 54 s** against NodeReal. Later runs were about 1 s thanks to Foundry's RPC cache with pinned blocks.
+- `deal()` from forge-std worked on bStocks despite the EIP-8056 beacon proxy layout, which made it easy to open test positions.
