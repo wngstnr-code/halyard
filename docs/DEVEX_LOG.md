@@ -16,3 +16,23 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 - **bStocks use EIP-8056 scaled UI amounts** (`uiMultiplier`, `balanceOfUI`). This is not mentioned in the bStocks launch blog. Integrators must decide whether to use raw or UI balances.
 - **Venus delegation is documented only in code comments.** `updateDelegate` also enables `borrowBehalf`. A protocol that only needs to redeem and repay on behalf of a user still gets borrowing rights, with no way to scope them.
 - Time spent today on verification: roughly 2 hours, most of it spent working around RPC log limits.
+
+## 2026-10-06 (afternoon)
+
+- **Binance domains blocked by the ISP in Indonesia.**
+  - `developers.binance.com` serves a TLS certificate for `xblock.gmedia.id`.
+  - `api.binance.com` and `www.binance.com` do not connect at all.
+  - We could not open the Agentic Wallet docs or test the RWA API without a VPN.
+  - `data-api.binance.vision` works and has CORS `*`, which saved the Gap Simulator.
+- **Atlas oracle feeds keep no history.** `latestRoundData` always returns roundId 1, so the only way to study weekend behavior was to scrape the update transactions from BscScan and decode the event data by hand. The packing is 6 bytes of timestamp and 10 bytes of price, and it is not documented anywhere we found. Took about 40 minutes.
+- **Venus flash loans are allowlisted** (`authorizedFlashLoan`). The VToken has `isFlashLoanEnabled() == true` on vUSDT, which suggests they are open, but the Comptroller rejects non-whitelisted callers. We only found out by reading `FlashLoanFacet.sol`.
+- **The bStock token has a dividend multiplier nobody mentions.** NVDAB `uiMultiplier` is 1.000778. The bStocks launch posts talk about dividends but not about EIP-8056 raw vs UI balances.
+- **Automation on BSC is a moving target in 2026.**
+  - Gelato automation ended on Mar 31.
+  - Chainlink Automation v2.1 was sunset on Jul 31.
+  - CRE needs Early Access.
+  - Agent Studio mainnet needs AWS or Azure.
+  - There is no turnkey way to run a scheduled job against BSC without operating something yourself.
+- **Agent Studio docs**: the quickstart is clear (`bag` CLI, `sellerCore.ts`), but the mainnet path is hard to find. Only the deployment page says the managed BNB option is a 48-hour testnet trial.
+- **Free archive state is scarce.** Public RPCs serve historical state for about 1,000 blocks. Anvil forks start failing with `failed to get storage` within minutes.
+- **DexScreener rate limits** returned empty bodies (not JSON errors) when called three times in a row. Spacing calls by 4 seconds fixed it.
