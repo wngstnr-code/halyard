@@ -33,25 +33,28 @@ forge test
 
 ## Deploy
 
-The deployer key lives in Foundry's encrypted keystore, not in a file.
+The deployer key lives in Foundry's encrypted keystore (`halyard-deployer`), never in a file. The repo root `.env` only holds public addresses (`DEPLOYER_ADDRESS`, `FEE_RECIPIENT`); see `.env.example`.
 
-1. Import the key once. Run this yourself; it prompts for the private key and a password:
+1. Create the keystore once. Run it in a normal terminal, because it prompts for a password:
 
    ```sh
-   cast wallet import halyard-deployer --interactive
+   cast wallet new ~/.foundry/keystores halyard-deployer
    ```
 
-2. Dry run against live mainnet state:
+2. Fund the printed address with a little BNB on BNB Smart Chain.
+
+3. Dry run against live mainnet state:
 
    ```sh
-   FEE_RECIPIENT=0xYourAddress forge script script/Deploy.s.sol --rpc-url bsc --sender 0xYourAddress
+   set -a; . ../.env; set +a
+   forge script script/Deploy.s.sol --rpc-url bsc --sender $DEPLOYER_ADDRESS
    ```
 
-3. Broadcast and verify on Sourcify:
+4. Broadcast and verify on Sourcify. This prompts for the keystore password:
 
    ```sh
-   FEE_RECIPIENT=0xYourAddress forge script script/Deploy.s.sol --rpc-url bsc \
-     --account halyard-deployer --sender 0xYourAddress --broadcast --verify --verifier sourcify
+   forge script script/Deploy.s.sol --rpc-url bsc --account halyard-deployer \
+     --sender $DEPLOYER_ADDRESS --broadcast --verify --verifier sourcify
    ```
 
 A broadcast writes the deployed address to `deployments/56.json`, which the frontend reads.
