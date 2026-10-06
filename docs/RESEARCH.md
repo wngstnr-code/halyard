@@ -97,7 +97,8 @@ Lista Moolah (`lista-dao/moolah`): `setAuthorization(authorized, bool)` and `isA
 - Residual risks:
   - a token-wide pause by the `PauseManager` blocks every transfer, including Venus liquidations and Guardian swaps;
   - the issuer can blocklist the Guardian, which needs graceful failure and a clear UI message.
-- To do: confirm NVDAB and SPCXB use the same implementation and compliance contract.
+- Confirmed: NVDAB and SPCXB use the same beacon, compliance contract and PauseManager (`0x9fc74Be63f3589485B2423984a7a0557e0CF700a`).
+- NVDAB already has `uiMultiplier` = 1.000778223752807865 (a corporate action, most likely a dividend). TSLAB and SPCXB are at 1e18. The Venus oracle and the DEX both price **raw** units, so raw and UI balances already differ for NVDAB.
 
 ## 6. DEX liquidity (DexScreener API, Oct 6)
 
@@ -111,14 +112,16 @@ Lista Moolah (`lista-dao/moolah`): `setAuthorization(authorized, bool)` and `isA
 
 Enough depth to sell the few thousand dollars of collateral a typical protection needs.
 
-## 7. Open questions
+## 7. Questions raised on Oct 6 and how they were resolved
 
-1. **Positioning**: lead with capital efficiency (borrow more safely) or with gap protection? Data in section 4 favors capital efficiency plus a weekend auto de-risk.
-2. Should the Guardian also cover non-bStock collateral (the HF 1.04 account holds $281k debt on mostly crypto)? Wider market, but bStocks must stay central for the hackathon.
-3. How does the Atlas oracle behave while the US market is closed: frozen, or tracking 24/7 DEX trading?
-4. Can a BNB Agent Studio agent run on mainnet during the hackathon? The runtime credits mention testnet, but submissions must be mainnet.
-5. Are Lista bStock positions structured the same way, and how many exist?
-6. Is the Binance Web3 RWA API callable from a browser (CORS), or only from an agent or skill?
+| # | Question | Answer | Evidence |
+|---|---|---|---|
+| 1 | Positioning | **Capital efficiency plus safety**, decided by the user | section 4, `docs/DECISIONS.md` |
+| 2 | Cover non-bStock collateral? | No. Only bStock markets are sellable, though any debt is counted in health | `docs/DECISIONS.md` |
+| 3 | Atlas oracle when the market is closed | Updates **every hour, 24/7, including weekends**; repricing happens at the US open | section 9 |
+| 4 | Agent Studio on mainnet | Possible only on our own AWS or Azure, request-driven, no scheduler. **Not used.** | section 12 |
+| 5 | Lista bStock positions | Out of scope for the MVP. Lista is used only as the flash loan source | `docs/DECISIONS.md` |
+| 6 | Binance Web3 RWA API from the browser | Unreachable from this network (ISP block); CORS unknown. **Not used by the frontend.** | section 13 |
 
 ## 8. Competitor scan (public repos for this hackathon)
 
@@ -136,3 +139,80 @@ Nobody works on the lending side or on liquidation protection.
 Useful findings from other teams:
 - OneTicker reports an undocumented `40304` compliance error from the Binance Web3 API in some regions.
 - OneTicker also found that Binance `referencePrice` is circular (token price divided by share ratio).
+
+## 9. Atlas oracle behavior (TSLAB feed)
+
+Venus ResilientOracle config for every bStock: main = `0x9E6928Ec418948ceb9f1cd9872fD312b13D841D0` (Venus `ChainlinkOracle`), pivot = `0x04480f1Ba2252CDF89deB022B58d0a03d1B4cF91`, fallback disabled.
+
+The main oracle reads a feed per token with a `maxStalePeriod` of 3800 s:
+
+| Token | Feed | Description |
+|---|---|---|
+| TSLAB | `0x63950C265e7CDB4016bA60C288c46291C0148ce2` | "SingleFeed TSLAB/USD", 18 decimals |
+| NVDAB | `0x8a44cF4E55adD99EB8bAC5D5DB749C63106d54AA` | "SingleFeed NVDAB/USD" |
+
+**Method:**
+1. Took the last 300 transactions to the TSLAB feed from BscScan (`fulfillBasicOracleReport`).
+2. Read the receipts and block timestamps over RPC.
+3. Decoded the event data: the first 6 bytes are the timestamp, the last 10 bytes are the price with 18 decimals.
+4. `latestRoundData` always returns roundId 1, so the feed keeps no on-chain history and receipts are the only record.
+
+**Results** (Sep 23 to Oct 6, 2026):
+- 300 updates with **no gap longer than 1 hour**, weekends included. Updates are hourly heartbeats; we saw no deviation-triggered updates.
+- Weekend prices barely move: Sat Oct 3 to Sun Oct 4 stayed between $370.6 and $372.7.
+- The repricing happens at the US open (13:30 UTC):
+
+  | Window | Price move |
+  |---|---|
+  | Fri Oct 2, 12:34 to 15:08 UTC | $356.64 to $371.18 (+4.1%) |
+  | Mon Oct 5, 12:08 to 15:04 UTC | $367.23 to $377.25 (+2.7%) |
+
+**Implications:**
+- Venus actions keep working on weekends (the price is never stale), so liquidations can happen any time.
+- The real risk window is the first oracle update after the open, which is what the pre-close trigger addresses.
+- Because the oracle can lag the DEX by up to an hour, swaps use oracle-based `minOut`, so a lagging oracle makes `protect` revert rather than sell badly.
+
+## 10. Flash loan sources
+
+- **Venus**: vUSDT has flash loans enabled ($42.8M cash), but `executeFlashLoan` requires `authorizedFlashLoan[msg.sender]`, a governance allowlist (`setWhiteListFlashLoanAccount`). **Not usable.**
+- **Lista Moolah** `0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C`: `flashLoan(token, assets, data)` has no fee and no allowlist, only a per-token blacklist. USDT is accepted (a test call reverted only at the final `transferFrom`, as expected for an EOA). About 2.36M USDT available. **Chosen.**
+- PancakeSwap v3 flash is a fallback but costs the pool fee.
+
+## 11. Venus market action state
+
+`actionPaused` for vTSLAB, vNVDAB and vSPCXB: only `BORROW` is paused (the stock itself cannot be borrowed). Mint, redeem, repay, seize, liquidate, transfer, enter and exit are all active.
+
+## 12. Automation and agent options on BSC (Oct 2026)
+
+| Option | Status | Source |
+|---|---|---|
+| Gelato Automate / Web3 Functions | End of life on Mar 31, 2026 | Mimic blog, Gelato docs |
+| Chainlink Automation v2.1 | Registry `0xDc21E279934fF6721CaDfDD112DAfb3261f09A2C` still deployed (`KeeperRegistry 2.1.0`), sunset Jul 31, 2026, no logs in the last ~4,000 blocks | docs.chain.link, on-chain |
+| Chainlink CRE | Supports BNB Chain mainnet (cron and log triggers), but workflow deployment needs **Early Access approval** | docs.chain.link/cre |
+| BNB Agent Studio | BSC mainnet supported, but it deploys to **our own AWS Bedrock AgentCore or Azure AI Foundry**. The managed BNB option is a 48-hour testnet trial. Agents are request-driven (A2A, MCP, x402, ERC-8183) with no scheduler documented | docs.bnbchain.org/developer-kit/bnbchain-studio |
+| Binance Agentic Wallet (`baw` CLI) | `contract-call preview/execute` on chain 56 with backend risk simulation. Needs Developer Mode enabled in the Binance App. Has `defi position` with health rates | binance/binance-skills-hub |
+
+## 13. Data sources and network reachability (from Indonesia)
+
+- `api.binance.com` and `www.binance.com`: no connection (curl exit 60 / 000).
+- `developers.binance.com`: the TLS certificate is replaced by `xblock.gmedia.id`, which means an ISP block.
+- `data-api.binance.vision` (public market data mirror) works, with `access-control-allow-origin: *`. Hourly klines for TSLABUSDT and NVDABUSDT start Jun 11, 2026, and SPCXBUSDT on Jun 12, 2026.
+- `bsc-dataseed.bnbchain.org`, `bsc-rpc.publicnode.com`: fine for latest state. Historical state is kept for less than about 1,000 blocks (~7 minutes).
+- NodeReal MegaNode free tier includes BSC archive data (10M CU per month), which is the plan for fork tests.
+
+## 14. Swap execution check (PancakeSwap v3 QuoterV2)
+
+| Sell | USDT out | Per unit | Oracle |
+|---|---|---|---|
+| 1 TSLAB | 379.47 | 379.47 | 381.37 |
+| 10 TSLAB | 3,794.00 | 379.40 | 381.37 |
+
+Execution is about 0.5% below the oracle at these sizes, mostly the 0.25% fee tier.
+
+Current DEX vs oracle (DexScreener vs `getPrice`):
+
+| Market | Deviation |
+|---|---|
+| TSLAB | -0.25% |
+| NVDAB | -0.17% |
+| SPCXB | -0.09% |
