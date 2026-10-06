@@ -11,3 +11,4 @@ broadcast/
 # foundry
 contracts/out/
 contracts/cache/
+contracts/broadcast/**/dry-run/
