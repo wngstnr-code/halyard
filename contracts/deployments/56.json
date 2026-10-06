@@ -1,0 +1,7 @@
+{
+  "chainId": 56,
+  "fromBlock": 126043949,
+  "feeRecipient": "0x18E3fe26452ca4320a6C5365D349598cd855EeD7",
+  "halyardVault": "0x6137aCd41F9828dE0836EA5a776e95184bF7Df10",
+  "deployTx": "0x9dbc7423799fa642d7edaffa2bd9518edffc766582d52b32d83a7b5d6fc48fe0"
+}

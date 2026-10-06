@@ -85,7 +85,9 @@ contract Deploy is Script {
     function _record(HalyardVault vault, address feeRecipient) internal {
         string memory key = "deployment";
         vm.serializeUint(key, "chainId", block.chainid);
-        vm.serializeUint(key, "block", block.number);
+        // Lower bound for event scans: the block the script simulated against. The deploy
+        // transaction lands at or after it.
+        vm.serializeUint(key, "fromBlock", block.number);
         vm.serializeAddress(key, "feeRecipient", feeRecipient);
         string memory json = vm.serializeAddress(key, "halyardVault", address(vault));
         vm.writeJson(json, DEPLOYMENT_FILE);
