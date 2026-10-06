@@ -49,3 +49,10 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 - **PancakeSwap v3 router variants.** The BSC SwapRouter at `0x1b81...eB14` uses the `exactInputSingle` struct with a `deadline` field (selector `0x414bf389`), not the SwapRouter02 layout. We confirmed it by grepping the deployed bytecode for both selectors.
 - **The first fork test run took 54 s** against NodeReal. Later runs were about 1 s thanks to Foundry's RPC cache with pinned blocks.
 - `deal()` from forge-std worked on bStocks despite the EIP-8056 beacon proxy layout, which made it easy to open test positions.
+
+## 2026-10-06 (deployment)
+
+- **Deploy cost** was 2,807,407 gas at 0.05 gwei = 0.00014037 BNB. BSC gas is effectively free at this scale.
+- **Verifying through Sourcify was enough for BscScan.** `forge script --verify --verifier sourcify` returned `exact_match` within about 10 seconds, and BscScan showed "Source Code Verified (Exact Match)" with the full standard JSON input. No Etherscan API key was needed, which matters because the Etherscan V2 free tier's chain coverage for BSC was unclear.
+- **`cast wallet import --interactive` from Claude Code's `!` prefix fails** with `Device not configured (os error 6)` because there is no TTY. Pasting a key into the hidden prompt in macOS Terminal gave `invalid string length`. Creating a fresh keystore with `cast wallet new ~/.foundry/keystores halyard-deployer` was simpler and avoided handling a raw key at all.
+- **`forge script` records `block.number` of the simulation**, not the inclusion block (126043865 vs 126043949). We store it as `fromBlock`, a lower bound for event scans.
