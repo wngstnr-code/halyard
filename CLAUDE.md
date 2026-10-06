@@ -25,7 +25,8 @@ Read these before doing anything:
 ## Current status (2026-10-06)
 
 - Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 19 tests (unit plus mainnet fork) passing.
-- Next step: deployment script, then the static frontend, then the Wallet Skill.
+- Deploy script ready (`contracts/script/Deploy.s.sol`, dry run passes against live mainnet, ~0.00018 BNB). Real broadcast waits for the user's keystore account `halyard-deployer`.
+- Next step: the static frontend, then the Wallet Skill.
 - Blocked on the user for:
   1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
   2. A funded mainnet wallet (BNB for gas plus a small bStock and USDT position) for the live demo.
