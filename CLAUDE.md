@@ -24,8 +24,8 @@ Read these before doing anything:
 
 ## Current status (2026-10-06)
 
-- Research and design are done and every external dependency is verified. No code yet.
-- Next step: scaffold a Foundry project for `HalyardVault` and `MarketClock`, then the static frontend, then the Wallet Skill.
+- Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 19 tests (unit plus mainnet fork) passing.
+- Next step: deployment script, then the static frontend, then the Wallet Skill.
 - Blocked on the user for:
   1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
   2. A funded mainnet wallet (BNB for gas plus a small bStock and USDT position) for the live demo.
@@ -52,7 +52,9 @@ The Developer Experience Report is 25% of the score and must be written by a hum
 ## Useful commands
 
 - Foundry is installed (`cast`, `forge`, `anvil` at `~/.foundry/bin`).
-- Archive RPC: load it with `set -a; . ./.env; set +a` and use `$BSC_ARCHIVE_RPC`. Never echo the variable.
+- Archive RPC: load it with `set -a; . ./.env; set +a` and use `$BSC_ARCHIVE_RPC`.
+  - **Never pass the URL as a CLI argument and never echo it.** zsh does not word-split variables, and `cast` prints the full URL in errors. Export it as `ETH_RPC_URL` (cast reads it automatically) and pipe output through `sed -E 's#https://[^ "]+#<rpc>#g'`.
+- Run tests with `cd contracts && set -a; . ../.env; set +a; forge test`. The fork tests read `BSC_ARCHIVE_RPC` and pin blocks, so cached runs take about a second.
   - Always pin `--fork-block-number` so Foundry's RPC cache is reused.
   - The first Venus `getAccountLiquidity` on a cold fork takes about 50 s (many storage reads); later calls are instant.
   - Pass `--rpc-timeout 300` to `cast` when hitting a cold fork.
