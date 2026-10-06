@@ -36,3 +36,8 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 - **Agent Studio docs**: the quickstart is clear (`bag` CLI, `sellerCore.ts`), but the mainnet path is hard to find. Only the deployment page says the managed BNB option is a 48-hour testnet trial.
 - **Free archive state is scarce.** Public RPCs serve historical state for about 1,000 blocks. Anvil forks start failing with `failed to get storage` within minutes.
 - **DexScreener rate limits** returned empty bodies (not JSON errors) when called three times in a row. Spacing calls by 4 seconds fixed it.
+
+## 2026-10-06 (evening)
+
+- **NodeReal onboarding took about 5 minutes** (GitHub login, Create Now, BSC RPC endpoint). It was the first RPC that let us fork BSC reliably.
+- A cold Anvil fork needs about 52 s for one Venus `getAccountLiquidity` call, because the Diamond Comptroller loops over every market and each storage slot is a separate archive request. The default `cast` timeout of 45 s fails on it with `operation timed out`. `--rpc-timeout 300` fixes it.
