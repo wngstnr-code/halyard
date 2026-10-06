@@ -7,3 +7,7 @@ cache/
 broadcast/
 .DS_Store
 .vercel
+
+# foundry
+contracts/out/
+contracts/cache/
