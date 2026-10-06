@@ -198,7 +198,8 @@ The main oracle reads a feed per token with a `maxStalePeriod` of 3800 s:
 - `developers.binance.com`: the TLS certificate is replaced by `xblock.gmedia.id`, which means an ISP block.
 - `data-api.binance.vision` (public market data mirror) works, with `access-control-allow-origin: *`. Hourly klines for TSLABUSDT and NVDABUSDT start Jun 11, 2026, and SPCXBUSDT on Jun 12, 2026.
 - `bsc-dataseed.bnbchain.org`, `bsc-rpc.publicnode.com`: fine for latest state. Historical state is kept for less than about 1,000 blocks (~7 minutes).
-- NodeReal MegaNode free tier includes BSC archive data (10M CU per month), which is the plan for fork tests.
+- NodeReal MegaNode free tier (10M CU per month, 150 CUPS) **verified working** on Oct 6. It reads state from 1,000,000 blocks back (~5 days). An Anvil fork pinned 2,000 blocks back answered Venus `getAccountLiquidity` (52 s cold, instant once cached) and a PancakeSwap quote. `eth_getLogs` rejects 50,000-block ranges with `exceed maximum block range: 50000`.
+- Side observation: TSLAB held by vTSLAB dropped from 121.0 to 82.9 between two reads about an hour apart on Oct 6, so a supplier withdrew about 38 TSLAB (~$14.5k). Collateral in these markets moves in large chunks from a few accounts.
 
 ## 14. Swap execution check (PancakeSwap v3 QuoterV2)
 

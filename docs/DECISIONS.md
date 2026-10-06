@@ -53,7 +53,7 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 - **Why:** Binance domains are ISP-blocked from Indonesia and CORS is unverified. The public kline mirror works with CORS `*`.
 
 ### D11. Fork testing with an archive RPC
-- **Decision:** Use a NodeReal MegaNode free key (stored in `.env`, never committed) for Foundry fork tests.
+- **Decision:** Use a NodeReal MegaNode free key (stored in `.env` as `BSC_ARCHIVE_RPC`, never committed) for Foundry fork tests. Verified working on Oct 6.
 - **Why:** Free public RPCs keep only about 7 minutes of historical state, which breaks fork tests.
 
 ### D12. Product name: Halyard
