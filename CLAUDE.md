@@ -4,13 +4,14 @@ Guidance for Claude Code sessions working in this repository.
 
 ## Project
 
-**Gap Guardian** (working name): market-hours-aware liquidation protection for loans backed by tokenized stocks (bStocks) on Venus and Lista, BNB Smart Chain mainnet. Built for BNB Hack: Tokenized Stocks Edition. **Submission deadline: Oct 11 2026, 12:00 UTC.**
+**Gap Guardian** (working name): lets people borrow more against their bStocks (TSLAB, NVDAB, SPCXB) on Venus, safely, by de-risking positions automatically before US market closes and when health gets low. BNB Smart Chain mainnet. Positioning: capital efficiency plus safety. Built for BNB Hack: Tokenized Stocks Edition. **Submission deadline: Oct 11 2026, 12:00 UTC.**
 
 Read these before doing anything:
 - `docs/HACKATHON.md`: rules, judging criteria, deadlines, provided stack
 - `docs/IDEA.md`: product concept, problem, business model
 - `docs/ARCHITECTURE.md`: contracts, keeper layer, frontend, testing plan
-- `docs/RESEARCH.md`: verified on-chain facts, competitor scan, open questions
+- `docs/RESEARCH.md`: verified on-chain facts, competitor scan, resolved questions
+- `docs/DECISIONS.md`: settled decisions (do not reopen without new evidence)
 - `docs/DEVEX_LOG.md`: running log of developer experience friction (feeds the DevEx report)
 
 ## Hard constraints
@@ -20,6 +21,16 @@ Read these before doing anything:
 - **BSC mainnet only, spot only.** No perps anywhere, including as a price reference.
 - bStocks must stay central to the product.
 - The GuardianVault must never contain a code path that borrows on behalf of a user.
+
+## Current status (2026-10-06)
+
+- Research and design are done and every external dependency is verified. No code yet.
+- Next step: scaffold a Foundry project for `GuardianVault` and `MarketClock`, then the static frontend, then the Wallet Skill.
+- Blocked on the user for:
+  1. A NodeReal MegaNode free API key for archive fork tests (`.env`, never committed).
+  2. A funded mainnet wallet (BNB for gas plus a small bStock and USDT position) for the live demo.
+  3. A VPN when testing the `baw` CLI or Binance APIs (Binance domains are ISP-blocked in Indonesia).
+  4. Developer Mode enabled in the Binance App for the Agentic Wallet `contract-call` flow.
 
 ## Writing conventions
 
@@ -44,3 +55,5 @@ The Developer Experience Report is 25% of the score and must be written by a hum
 - `https://bsc-rpc.publicnode.com` works for latest-state `eth_call` but rejects archive and wide `eth_getLogs` requests.
 - `https://bsc.drpc.org` (free) allows `eth_getLogs` up to 10,000 blocks per call and rate limits aggressively.
 - Verified bStock token sources are on Sourcify (chain 56), not on BscScan.
+- `https://data-api.binance.vision/api/v3/klines` serves bStock candles (TSLABUSDT, NVDABUSDT, SPCXBUSDT) with CORS enabled.
+- Binance domains (`binance.com`, `developers.binance.com`) are ISP-blocked from the user's network.
