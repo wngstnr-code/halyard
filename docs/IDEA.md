@@ -1,89 +1,102 @@
 # Gap Guardian: product concept
 
-Working name. Liquidation protection for loans backed by tokenized stocks on BNB Chain, aware of US market hours.
+Working name. Borrow more against your tokenized stocks, safely: market-hours-aware de-risking for bStock-backed loans on Venus, BNB Chain mainnet.
 
 ## One-liner
 
-Borrowers who post bStocks (TSLAB, NVDAB, SPCXB) as collateral on Venus or Lista get their position de-risked automatically, before the weekend or before the health factor gets close to liquidation, for a fraction of what a liquidation would cost them.
+People who borrow against bStocks (TSLAB, NVDAB, SPCXB) keep huge safety buffers because nothing protects them when the US market reopens with a gap. Gap Guardian lets them use more of their borrowing power. The guardian de-risks their position automatically before the weekend close and whenever health gets close to the edge, in one atomic transaction, for a fraction of what a liquidation costs.
 
-## The problem
+## The problem: idle borrowing power
 
-- Venus listed bStocks as collateral in its Core Pool on June 20, 2026. Lista DAO also accepts bStocks.
-- The underlying US market is open about 32 of the 168 hours in a week. On-chain tokens trade 24/7, but the real price discovery happens when NYSE/Nasdaq reopen, often with a gap.
-- If the price gaps down, a borrower gets liquidated and pays a **10% liquidation incentive** on the repaid amount (Venus parameter for TSLAB/NVDAB/SPCXB).
-- Venus itself treats this as a real risk: it set aside a USD 200,000 bStock liquidation buffer for weekends and thin liquidity, and uses an oracle protection trigger of 16.67%.
-- Repaying manually on a weekend is slow, and most retail users are not watching their health factor on Sunday night.
+Venus listed bStocks as collateral on June 20, 2026 (collateral factor 60% for TSLAB and NVDAB, 50% for SPCXB). Measured on-chain on Oct 6, 2026 (see `docs/RESEARCH.md` section 4):
 
-## Worked example
+- 59 accounts borrow against bStocks today.
+- 21 of them hold mostly bStocks as collateral: about $517k of stock against $205k of debt.
+- Users are very conservative:
+  - the riskiest stock-heavy account would only be liquidated by a 23% drop;
+  - the median account needs a drop of about 42%;
+  - a fully borrowed position (at the collateral factor) is liquidated by a 14.3% drop.
 
-Collateral: $10,000 of TSLAB. Debt: $6,500 USDT. Liquidation threshold: 70%.
+Why they hold back:
+- The US market is open about 32 of 168 hours a week. The oracle keeps updating hourly on weekends, but the real repricing happens at the open. On Oct 2 and Oct 5 the TSLAB oracle moved +4.1% and +2.7% within the first update after the open.
+- A liquidation costs a 10% incentive on the repaid amount.
+- Nobody watches their health factor at 13:30 UTC on a Monday.
 
-TSLA gaps down 10% at the open. Collateral is now $9,000, the liquidation limit is $6,300, and the debt is $6,500, so the position can be liquidated.
+The result is capital sitting idle because the risk cannot be managed, not because users do not want liquidity.
 
-| Scenario | User loss |
-|---|---|
-| No protection: liquidator repays 50% of the debt ($3,250) and seizes collateral with a 10% bonus | about $325 |
-| Gap Guardian: sells about $1,500 of TSLAB earlier, at a 0.05% pool fee plus slippage, plus a 0.3% protocol fee | about $6 to $10 |
+## The solution
 
-## How it works (user view)
+1. **See the real headroom.** The app reads the Venus position from chain and shows how much more the user could borrow at each health target. It also shows what historical Monday gaps would have done to that position.
+2. **Set a guardian policy once.** Minimum health, target health, a weekend target, max slippage, which bStocks may be sold.
+3. **Borrow more, directly on Venus.** The user signs the borrow from their own wallet. The guardian never borrows.
+4. **The guardian de-risks automatically.**
+   - **Pre-close trigger**: in the last hour before the US market closes for a weekend or holiday, bring health up to the weekend target.
+   - **Health trigger**: whenever health drops below the minimum, bring it back to the target.
 
-1. Connect a wallet. The app reads the Venus/Lista position straight from chain and shows the health factor and distance to liquidation.
-2. The Gap Simulator replays real historical Monday gaps for that stock and shows what each gap would cost with and without protection.
-3. The user sets a policy:
-   - minimum health factor
-   - target health factor
-   - weekend target
-   - max slippage
-   - which collateral may be sold
-4. The user signs `comptroller.updateDelegate(guardian, true)` on Venus (or `setAuthorization` on Lista) plus `setPolicy`. No migration, the position stays where it is.
-5. When a trigger fires, anyone (or our keeper agent) calls `protect(user)`. In one atomic transaction the contract:
-   1. takes a USDT flash loan
-   2. repays part of the debt on behalf of the user
-   3. redeems collateral on behalf of the user
-   4. swaps it on PancakeSwap v3
-   5. repays the flash loan
-6. The user can revoke the delegation with one click at any time.
+   Either way it happens in one transaction:
+   1. a free flash loan of USDT from Lista
+   2. repay part of the debt on behalf of the user
+   3. redeem a slice of bStock collateral
+   4. sell it on PancakeSwap v3
+   5. repay the flash loan
+5. **Revoke any time** with one transaction.
 
-The user can also manage everything through natural language with the Wallet Skill: "protect my NVDAB, never let health drop under 1.2 over the weekend".
+Users can also manage everything in plain language through a Binance Agentic Wallet Skill: "protect my NVDAB loan, keep health above 1.3 over weekends".
 
-## Triggers
+## Worked example (capital efficiency)
 
-- **Health trigger**: the health factor, computed from Venus `getAccountLiquidity` (which already uses the liquidation threshold), falls below the user's `minHF`.
-- **Market clock trigger**: within a window before the US market closes for the weekend or a holiday, de-risk to `weekendTargetHF`. The NYSE calendar is computed on-chain (US DST rules plus a holiday table). This is what separates us from generic auto-repay tools.
+$10,000 of TSLAB. Today the user borrows $3,000 USDT (health 2.33) and is scared to go further.
+
+With the guardian, the user borrows $5,000 (health 1.40):
+- **During the week** the stock can drop 28% before liquidation.
+- **Friday, one hour before the close**, if health is under the 1.6 weekend target, the guardian sells about $1,110 of TSLAB and repays debt (solving (7000 - 0.7x) / (5000 - x) = 1.6). Health is 1.6 before the Monday open, which survives a 37% gap.
+- **Cost of that de-risk:**
+
+  | Item | Amount |
+  |---|---|
+  | Pool fee, 0.25% | ~$2.80 |
+  | Slippage | ~$1 |
+  | Protocol fee, 0.3% | ~$3.35 |
+  | Keeper tip, 0.1% | ~$1.10 |
+  | **Total** | **about $8** |
+
+- **Without protection**, the same $5,000 position hit by a 30% gap is liquidated: 10% of half the debt, so $250 lost.
+- **The user gains $2,000 of extra liquidity during the week**, and keeps about $890 of it over the weekend, at the cost of an occasional ~$8 rebalance.
 
 ## Why this fits the hackathon
 
-- bStocks are central. Every protected position is a bStock position.
-- BSC mainnet, spot only. Lending and spot swaps, no perps anywhere in the product or its price checks.
-- Uses both special-prize tools: a BNB Agent Studio keeper agent and an Agentic Wallet Skill.
-- Nobody else in the public submissions touches the lending side. Most entries are routers, price comparators, gap scanners and baskets (see `docs/RESEARCH.md`).
+- **bStocks are central.** Every protected position is bStock collateral, and every de-risk sells bStocks.
+- **BSC mainnet, spot only.** Lending plus spot swaps, no perps anywhere.
+- **Primary special prize target: Best Use of Agentic Wallet / Wallet Skills.** The Skill drives the Guardian through `baw contract-call`.
+- **BNB Agent Studio is not a target.** Its mainnet deployment needs our own AWS or Azure runtime, which breaks the no-backend rule. See `docs/DECISIONS.md`.
+- **Unique among public submissions.** Nobody else works on the lending side. They focus on routers, price comparators, gap scanners and baskets.
 
 ## Fit with our project rules
 
 | Rule | How we meet it |
 |---|---|
-| No mock data | Every number comes from chain (Venus, the oracle, the PancakeSwap quoter) or from real historical candles. |
+| No mock data | Positions, prices and health come from chain. Historical gaps come from real Binance candles. |
 | No mock features | Every action is a real mainnet transaction. |
-| No backend | Static frontend, immutable contracts, permissionless keeper calls. The keeper agent runs on BNB Agent Studio, not on our server. |
-| Real problem | Liquidation penalties on stock collateral, a risk Venus itself acknowledges. |
-| Not mainstream | Lending-side protection with on-chain market hours awareness. No other submission does it. |
+| No backend | Static frontend, an immutable contract and permissionless keepers. The keeper can be any third party, the user's own browser tab, the user's AI agent through the Wallet Skill, or our open-source keeper script. Nothing depends on a server we operate. |
+| Real problem | Measured idle borrowing power on live Venus accounts, plus a real liquidation cost. |
+| Not mainstream | Lending-side protection with on-chain market hours awareness. |
 
 ## Business model
 
 | Layer | Mechanism |
 |---|---|
-| B2C | 0.3% of the de-risked notional, charged only when the Guardian acts. Comparable to DeFi Saver automation fees on Aave (around 0.25%). |
-| Keeper tip | 0.1% of the sold notional goes to whoever executed `protect`. This keeps the system alive without our own infrastructure. |
-| B2B (protocols) | Fewer weekend liquidations means less bad debt risk for Venus and Lista. That supports grants, fee subsidies or a native integration in their UI. |
+| B2C | 0.3% of the de-risked notional, charged only when the guardian acts. DeFi Saver charges a similar automation fee on Aave. |
+| Keeper tip | 0.1% of the sold notional for whoever executes `protect`. This keeps the system alive without our own infrastructure. |
+| B2B (protocols) | More borrowing against bStocks means more interest revenue for Venus, with lower weekend bad-debt risk. That supports grants, fee subsidies or a native integration. |
 | B2B2C (wallets) | A "Protect" module inside Binance Wallet or Trust Wallet with revenue share. |
-| Expansion | Ondo and xStocks collateral as lenders list them, tokenized-stock LP positions, other RWA collateral. |
+| Expansion | Lista and other lenders, Ondo and xStocks collateral as they get listed, and other RWA collateral with market hours. |
 
 ## Honest market sizing
 
-The market is small today: about $640k of bStock collateral in Venus (Oct 6, 2026) plus a few hundred thousand on Lista. Supply caps keep getting raised (NVDAB went from 450 to 1,500 and is near the cap). The pitch is "the safety layer that has to exist before stock-collateral lending can scale", not a large current TAM.
+The market is small today: about $640k of bStock collateral on Venus, plus some on Lista. Caps keep rising (NVDAB went from 450 to 1,500 and is almost full).
 
-Verified on-chain: 59 Venus accounts borrow against bStocks today, and 21 of them hold mostly bStocks as collateral ($205k debt against $517k of stock). These users are conservative. None would be liquidated by a 20% gap, and the riskiest needs about a 23% drop. So the strongest message is **capital efficiency plus safety**: borrow closer to the limit and let the Guardian de-risk before the weekend. See `docs/RESEARCH.md` sections 4 and 7.
+The pitch is the infrastructure that lets stock-collateral lending scale, not a large current TAM. If the guardian moves stock-heavy accounts from a median ~42% buffer to ~30%, borrowing on today's collateral alone grows by a meaningful share, and that grows with every cap increase.
 
 ## Prior art
 
-DeFi Saver and Instadapp offer automated repay for Aave and Compound. None of them are market-hours aware, none support Venus bStock markets, and none handle the weekend gap problem specific to tokenized equities.
+DeFi Saver and Instadapp offer automated repay for Aave and Compound. None of them are market-hours aware, support Venus bStock markets, or handle the weekend gap problem specific to tokenized equities.
