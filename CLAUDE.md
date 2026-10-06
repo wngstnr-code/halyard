@@ -4,7 +4,7 @@ Guidance for Claude Code sessions working in this repository.
 
 ## Project
 
-**Gap Guardian** (working name): lets people borrow more against their bStocks (TSLAB, NVDAB, SPCXB) on Venus, safely, by de-risking positions automatically before US market closes and when health gets low. BNB Smart Chain mainnet. Positioning: capital efficiency plus safety. Built for BNB Hack: Tokenized Stocks Edition. **Submission deadline: Oct 11 2026, 12:00 UTC.**
+**Halyard**: lets people borrow more against their bStocks (TSLAB, NVDAB, SPCXB) on Venus, safely, by de-risking positions automatically before US market closes and when health gets low. BNB Smart Chain mainnet. Positioning: capital efficiency plus safety. Built for BNB Hack: Tokenized Stocks Edition. **Submission deadline: Oct 11 2026, 12:00 UTC.**
 
 Read these before doing anything:
 - `docs/HACKATHON.md`: rules, judging criteria, deadlines, provided stack
@@ -20,12 +20,12 @@ Read these before doing anything:
 - **No backend.** Static frontend, smart contracts, permissionless keepers, and an agent on BNB Agent Studio. Do not add servers, databases or API routes.
 - **BSC mainnet only, spot only.** No perps anywhere, including as a price reference.
 - bStocks must stay central to the product.
-- The GuardianVault must never contain a code path that borrows on behalf of a user.
+- The HalyardVault must never contain a code path that borrows on behalf of a user.
 
 ## Current status (2026-10-06)
 
 - Research and design are done and every external dependency is verified. No code yet.
-- Next step: scaffold a Foundry project for `GuardianVault` and `MarketClock`, then the static frontend, then the Wallet Skill.
+- Next step: scaffold a Foundry project for `HalyardVault` and `MarketClock`, then the static frontend, then the Wallet Skill.
 - Blocked on the user for:
   1. A NodeReal MegaNode free API key for archive fork tests (`.env`, never committed).
   2. A funded mainnet wallet (BNB for gas plus a small bStock and USDT position) for the live demo.

@@ -1,6 +1,6 @@
 # Research notes
 
-Verified facts behind the Gap Guardian design. Each item says how it was measured so it can be re-checked. Snapshot date: **Oct 6, 2026** (BSC block ~126,032,600).
+Verified facts behind the Halyard design. Each item says how it was measured so it can be re-checked. Snapshot date: **Oct 6, 2026** (BSC block ~126,032,600).
 
 ## 1. Ecosystem context
 
@@ -37,7 +37,7 @@ From `VenusProtocol/venus-protocol` (main branch):
 - `MarketFacet.updateDelegate(delegate, approved)` sets `approvedDelegates[user][delegate]`.
 - `VBep20.redeemBehalf` and `redeemUnderlyingBehalf` require `approvedDelegates(redeemer, msg.sender)`. **The underlying is sent to `msg.sender`**, which is the delegate.
 - `repayBorrowBehalf` needs no approval.
-- **The same delegation also allows `borrowBehalf`.** A delegate contract can borrow on behalf of the user, so the Guardian must have no borrow code path.
+- **The same delegation also allows `borrowBehalf`.** A delegate contract can borrow on behalf of the user, so Halyard must have no borrow code path.
 - `PolicyFacet.getAccountLiquidity(account)` uses **liquidation threshold** weights. `redeemAllowed` and `getHypotheticalAccountLiquidity` use **collateral factor** weights. A position close to liquidation cannot redeem before repaying, so the flow must repay first, funded by a flash loan.
 - `treasuryPercent()` on the Core Pool Comptroller is `0`, so there is no redeem fee today.
 - The Core Pool vToken has flash loan support (`TransferOutUnderlyingFlashLoan`).
@@ -74,7 +74,7 @@ Lista Moolah (`lista-dao/moolah`): `setAuthorization(authorized, bool)` and `isA
 - Demand is real: 59 live accounts borrow against bStocks today, with no tooling to protect them.
 - **Today's positions are conservative.** No stock-heavy account would be liquidated by a 20% gap. The riskiest needs about a 23% drop. The four accounts under HF 1.2 are mostly crypto-collateralized, with less than 5% of collateral in bStocks.
 - The protocol parameters push users there. With CF 60% and LT 70%, a fully borrowed position starts at HF 1.167 and is liquidated by a 14.3% drop. Users seem to leave a large buffer instead, which is idle borrowing capacity.
-- The pitch should therefore lead with **capital efficiency plus safety** ("borrow closer to the limit and let the Guardian de-risk before the weekend"), not with "users are getting liquidated right now". This is an open product decision, see section 7.
+- The pitch should therefore lead with **capital efficiency plus safety** ("borrow closer to the limit and let Halyard de-risk before the weekend"), not with "users are getting liquidated right now". This is an open product decision, see section 7.
 
 ## 5. Step 2 verification: can a new contract hold and move bStocks?
 
@@ -83,7 +83,7 @@ Lista Moolah (`lista-dao/moolah`): `setAuthorization(authorized, bool)` and `isA
 - TSLAB is a **beacon proxy**:
   - beacon `0x156d6dce9a4f6139a3406f1f021f1a4880de93a3`
   - implementation `0xCFEd6c4679297ea4889F8183bC057B4A86C64e46`, source `SecuritiesToken.sol`, verified on Sourcify, not on BscScan
-- The token implements **EIP-8056 scaled UI amounts**: `uiMultiplier`, `balanceOfUI`, `pendingMultiplier`, `effectiveAt`. Current `uiMultiplier` is 1e18 with no pending change. Raw balances and UI balances can diverge after a corporate action, so the Guardian must work in raw units and the UI must show both.
+- The token implements **EIP-8056 scaled UI amounts**: `uiMultiplier`, `balanceOfUI`, `pendingMultiplier`, `effectiveAt`. Current `uiMultiplier` is 1e18 with no pending change. Raw balances and UI balances can diverge after a corporate action, so Halyard must work in raw units and the UI must show both.
 - `_update` checks pause state, then calls `compliance.checkIsCompliant` on `from`, `to`, and on `msg.sender` when it is a third party (transferFrom).
 - Compliance contract `0x53dBa7AaBDe774787A1F57236B235567dA8e14F4` (`Compliance.sol`, verified on Sourcify):
 
@@ -93,10 +93,10 @@ Lista Moolah (`lista-dao/moolah`): `setAuthorization(authorized, bool)` and `isA
   ```
 
   This is a **deny list only**. There is no allow list or KYC whitelist. Calling it for a fresh random address returns without revert.
-- **Conclusion: a new GuardianVault contract can receive, hold and swap bStocks**, unless the issuer explicitly blocklists it.
+- **Conclusion: a new HalyardVault contract can receive, hold and swap bStocks**, unless the issuer explicitly blocklists it.
 - Residual risks:
-  - a token-wide pause by the `PauseManager` blocks every transfer, including Venus liquidations and Guardian swaps;
-  - the issuer can blocklist the Guardian, which needs graceful failure and a clear UI message.
+  - a token-wide pause by the `PauseManager` blocks every transfer, including Venus liquidations and Halyard swaps;
+  - the issuer can blocklist Halyard, which needs graceful failure and a clear UI message.
 - Confirmed: NVDAB and SPCXB use the same beacon, compliance contract and PauseManager (`0x9fc74Be63f3589485B2423984a7a0557e0CF700a`).
 - NVDAB already has `uiMultiplier` = 1.000778223752807865 (a corporate action, most likely a dividend). TSLAB and SPCXB are at 1e18. The Venus oracle and the DEX both price **raw** units, so raw and UI balances already differ for NVDAB.
 

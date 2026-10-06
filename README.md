@@ -1,8 +1,8 @@
-# Gap Guardian
+# Halyard
 
 Borrow more against your tokenized stocks on BNB Chain, safely.
 
-People who borrow against bStocks (TSLAB, NVDAB, SPCXB) on Venus keep huge safety buffers, because nothing protects them when the US market reopens with a gap and a liquidation costs 10%. Gap Guardian lets them use more of their borrowing power.
+People who borrow against bStocks (TSLAB, NVDAB, SPCXB) on Venus keep huge safety buffers, because nothing protects them when the US market reopens with a gap and a liquidation costs 10%. Halyard lets them use more of their borrowing power.
 
 Set a policy once. Before the market closes for the weekend, or whenever health gets low, the position is de-risked in one atomic transaction:
 1. a free flash loan repays part of the debt;

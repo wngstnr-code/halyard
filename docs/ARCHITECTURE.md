@@ -8,14 +8,14 @@ Status: design locked, no code yet. Every external dependency below was verified
 [Static frontend: Vercel or IPFS]
    reads:  BSC RPC (Venus Comptroller, ResilientOracle, PancakeSwap QuoterV2)
            data-api.binance.vision klines (historical gaps, CORS *)
-   writes (user wallet): comptroller.updateDelegate, guardian.setPolicy, vUSDT.borrow (user's own borrow)
+   writes (user wallet): comptroller.updateDelegate, halyard.setPolicy, vUSDT.borrow (user's own borrow)
    optional "keeper tab": polls canProtect and sends protect() from the connected wallet
 
-[GuardianVault.sol]  <-- protect(user) from anyone: third-party bots, keeper tab, Wallet Skill, keeper script
+[HalyardVault.sol]  <-- protect(user) from anyone: third-party bots, keeper tab, Wallet Skill, keeper script
    Lista Moolah flashLoan(USDT) -> vUSDT.repayBorrowBehalf(user) -> vBStock.redeemUnderlyingBehalf(user)
    -> PancakeSwap v3 exactInputSingle(bStock -> USDT) -> repay flash loan -> fees -> leftover repays more debt
 
-[Wallet Skill "gap-guardian"]  natural language -> baw contract-call preview/execute (BSC, chain 56)
+[Wallet Skill "halyard"]  natural language -> baw contract-call preview/execute (BSC, chain 56)
 [keeper/ script]                open-source Node script anyone can run; not required by the protocol
 ```
 
@@ -47,7 +47,7 @@ Quote check (Oct 6): selling 1 TSLAB returned 379.47 USDT and selling 10 TSLAB r
 
 ## Contracts
 
-### GuardianVault (singleton, immutable)
+### HalyardVault (singleton, immutable)
 
 Requirements:
 - No proxy, no owner, no admin keys, no upgrade path. Fee recipient and fee rates are constructor constants.
@@ -65,7 +65,7 @@ struct Policy {
     uint16 weekendHealthBps;    // e.g. 16000 = 1.60, restore point before a market close
     uint16 maxSlippageBps;      // vs Venus oracle price, capped globally (e.g. 300)
     uint40 expiry;
-    address[] sellable;         // vTokens (bStock markets only) the guardian may redeem, in priority order
+    address[] sellable;         // vTokens (bStock markets only) Halyard may redeem, in priority order
 }
 ```
 
@@ -83,7 +83,7 @@ Health is defined as LT-weighted collateral divided by debt. It is computed from
 2. Compute the repay amount `x` that brings health to the target, using the closed form `(W - LT*x) / (D - x) = target`, and cap it by the collateral available in `sellable`.
 3. `Moolah.flashLoan(USDT, x, data)`. Inside `onMoolahFlashLoan`:
    1. `vUSDT.repayBorrowBehalf(user, x)`.
-   2. `vBStock.redeemUnderlyingBehalf(user, c)`, where `c` is the collateral worth `x` plus fees plus slippage at the oracle price. The underlying arrives at the guardian.
+   2. `vBStock.redeemUnderlyingBehalf(user, c)`, where `c` is the collateral worth `x` plus fees plus slippage at the oracle price. The underlying arrives at Halyard.
    3. Swap `c` bStock for USDT on the fee 2500 pool, with `amountOutMinimum` set to the oracle value minus `maxSlippageBps`.
    4. Approve Moolah to pull back `x`.
    5. Pay the protocol fee and the keeper tip. Any leftover USDT goes to `repayBorrowBehalf(user)`.
@@ -91,13 +91,13 @@ Health is defined as LT-weighted collateral divided by debt. It is computed from
    - health after is at least health before;
    - health after is at most target plus a tolerance (no over-selling);
    - the user's total borrow balance went down;
-   - the guardian holds no leftover user funds.
+   - Halyard holds no leftover user funds.
 5. Emit `Protected(user, reason, vCollateral, soldRaw, repaid, healthBefore, healthAfter, fee, tip, keeper)`.
 
 Why this order: Venus `redeemAllowed` uses the collateral factor, which is stricter than the liquidation threshold, so a position near liquidation cannot redeem first. Venus's own flash loans are allowlisted by governance (`authorizedFlashLoan`), so we use Lista Moolah, which is permissionless and free.
 
 Failure behavior:
-- If the bStock is paused, or the guardian is blocklisted by the issuer's compliance contract, `protect` reverts with a clear custom error. `canProtect` surfaces it so the UI can explain it.
+- If the bStock is paused, or Halyard is blocklisted by the issuer's compliance contract, `protect` reverts with a clear custom error. `canProtect` surfaces it so the UI can explain it.
 - If the DEX price is worse than the oracle by more than `maxSlippageBps`, the swap reverts. Around the market open the oracle can lag the DEX by up to one hour (hourly updates). In that window Venus liquidations use the same lagging oracle, so the user is not liquidated either, and the next oracle update re-arms the trigger.
 
 ### MarketClock (library)
@@ -121,7 +121,7 @@ Rejected options (details in `docs/DECISIONS.md`):
 - Chainlink Automation: v2.1 sunset Jul 31, 2026, with no activity on the BSC registry. Its replacement CRE needs Early Access approval.
 - BNB Agent Studio: mainnet means our own AWS or Azure runtime, and it is request-driven with no scheduler.
 
-## Wallet Skill: `gap-guardian`
+## Wallet Skill: `halyard`
 
 Follows the Binance Skills Hub format (`SKILL.md` with `name`, `description`, `version`, `license` frontmatter plus `references/`). It depends on the `binance-agentic-wallet` skill and its `baw` CLI.
 
@@ -130,21 +130,21 @@ Intents:
 | Intent | Calls |
 |---|---|
 | Show my bStock loans and headroom | Read-only RPC calls |
-| Protect my position with policy X | `baw contract-call` for `updateDelegate(guardian, true)` and `setPolicy(...)` |
+| Protect my position with policy X | `baw contract-call` for `updateDelegate(halyard, true)` and `setPolicy(...)` |
 | Check if anything needs protection / run protection | `canProtect`, then `protect` |
-| Stop protecting | `clearPolicy`, then `updateDelegate(guardian, false)` |
+| Stop protecting | `clearPolicy`, then `updateDelegate(halyard, false)` |
 
 Constraints from the Agentic Wallet:
 - External contract calls need Developer Mode, enabled in the Binance App.
-- Every call goes through `preview` with a risk check, then `execute`. A brand-new contract might be flagged as risky, so the guardian must be source-verified.
+- Every call goes through `preview` with a risk check, then `execute`. A brand-new contract might be flagged as risky, so Halyard must be source-verified.
 - The skill must follow the hub's neutral language rules (no promotion of assets).
 
 ## Frontend
 
 Static app (Next.js static export or Vite), all reads from chain:
 1. **Position and headroom.** Venus positions via `getAssetsIn`, `getAccountSnapshot` and `getAccountLiquidity`. Health, liquidation drop, and extra borrow at health 1.3, 1.4 and 1.5.
-2. **Gap Simulator.** Hourly candles from `data-api.binance.vision` (TSLABUSDT, NVDABUSDT, SPCXBUSDT, history since Jun 11, 2026, CORS `*`). It measures real pre-close to post-open moves and replays them against the user's position, with and without the guardian.
-3. **Guardian setup and history.** Policy form, delegate and revoke, `Protected` events with BscScan links, and the keeper tab toggle.
+2. **Gap Simulator.** Hourly candles from `data-api.binance.vision` (TSLABUSDT, NVDABUSDT, SPCXBUSDT, history since Jun 11, 2026, CORS `*`). It measures real pre-close to post-open moves and replays them against the user's position, with and without Halyard.
+3. **Halyard setup and history.** Policy form, delegate and revoke, `Protected` events with BscScan links, and the keeper tab toggle.
 
 The Binance Web3 RWA API (`www.binance.com/bapi/...`) is not used by the frontend. It is unreachable from Indonesian ISPs without a VPN and its CORS policy is unverified. It may be used inside the Wallet Skill.
 
@@ -155,6 +155,6 @@ The Binance Web3 RWA API (`www.binance.com/bapi/...`) is not used by the fronten
   - user debt never increases;
   - no borrow selector exists in the bytecode;
   - health never decreases after `protect`;
-  - the guardian never holds a balance after a transaction.
+  - Halyard never holds a balance after a transaction.
 - MarketClock unit tests across DST switches, every 2026 and 2027 holiday, and the early closes.
 - Live mainnet run with a small real position before recording the demo.

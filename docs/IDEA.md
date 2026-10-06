@@ -1,10 +1,10 @@
-# Gap Guardian: product concept
+# Halyard: product concept
 
-Working name. Borrow more against your tokenized stocks, safely: market-hours-aware de-risking for bStock-backed loans on Venus, BNB Chain mainnet.
+Borrow more against your tokenized stocks, safely: market-hours-aware de-risking for bStock-backed loans on Venus, BNB Chain mainnet.
 
 ## One-liner
 
-People who borrow against bStocks (TSLAB, NVDAB, SPCXB) keep huge safety buffers because nothing protects them when the US market reopens with a gap. Gap Guardian lets them use more of their borrowing power. The guardian de-risks their position automatically before the weekend close and whenever health gets close to the edge, in one atomic transaction, for a fraction of what a liquidation costs.
+People who borrow against bStocks (TSLAB, NVDAB, SPCXB) keep huge safety buffers because nothing protects them when the US market reopens with a gap. Halyard lets them use more of their borrowing power. Halyard de-risks their position automatically before the weekend close and whenever health gets close to the edge, in one atomic transaction, for a fraction of what a liquidation costs.
 
 ## The problem: idle borrowing power
 
@@ -27,9 +27,9 @@ The result is capital sitting idle because the risk cannot be managed, not becau
 ## The solution
 
 1. **See the real headroom.** The app reads the Venus position from chain and shows how much more the user could borrow at each health target. It also shows what historical Monday gaps would have done to that position.
-2. **Set a guardian policy once.** Minimum health, target health, a weekend target, max slippage, which bStocks may be sold.
-3. **Borrow more, directly on Venus.** The user signs the borrow from their own wallet. The guardian never borrows.
-4. **The guardian de-risks automatically.**
+2. **Set a Halyard policy once.** Minimum health, target health, a weekend target, max slippage, which bStocks may be sold.
+3. **Borrow more, directly on Venus.** The user signs the borrow from their own wallet. Halyard never borrows.
+4. **Halyard de-risks automatically.**
    - **Pre-close trigger**: in the last hour before the US market closes for a weekend or holiday, bring health up to the weekend target.
    - **Health trigger**: whenever health drops below the minimum, bring it back to the target.
 
@@ -47,9 +47,9 @@ Users can also manage everything in plain language through a Binance Agentic Wal
 
 $10,000 of TSLAB. Today the user borrows $3,000 USDT (health 2.33) and is scared to go further.
 
-With the guardian, the user borrows $5,000 (health 1.40):
+With Halyard, the user borrows $5,000 (health 1.40):
 - **During the week** the stock can drop 28% before liquidation.
-- **Friday, one hour before the close**, if health is under the 1.6 weekend target, the guardian sells about $1,110 of TSLAB and repays debt (solving (7000 - 0.7x) / (5000 - x) = 1.6). Health is 1.6 before the Monday open, which survives a 37% gap.
+- **Friday, one hour before the close**, if health is under the 1.6 weekend target, Halyard sells about $1,110 of TSLAB and repays debt (solving (7000 - 0.7x) / (5000 - x) = 1.6). Health is 1.6 before the Monday open, which survives a 37% gap.
 - **Cost of that de-risk:**
 
   | Item | Amount |
@@ -67,7 +67,7 @@ With the guardian, the user borrows $5,000 (health 1.40):
 
 - **bStocks are central.** Every protected position is bStock collateral, and every de-risk sells bStocks.
 - **BSC mainnet, spot only.** Lending plus spot swaps, no perps anywhere.
-- **Primary special prize target: Best Use of Agentic Wallet / Wallet Skills.** The Skill drives the Guardian through `baw contract-call`.
+- **Primary special prize target: Best Use of Agentic Wallet / Wallet Skills.** The Skill drives Halyard through `baw contract-call`.
 - **BNB Agent Studio is not a target.** Its mainnet deployment needs our own AWS or Azure runtime, which breaks the no-backend rule. See `docs/DECISIONS.md`.
 - **Unique among public submissions.** Nobody else works on the lending side. They focus on routers, price comparators, gap scanners and baskets.
 
@@ -85,7 +85,7 @@ With the guardian, the user borrows $5,000 (health 1.40):
 
 | Layer | Mechanism |
 |---|---|
-| B2C | 0.3% of the de-risked notional, charged only when the guardian acts. DeFi Saver charges a similar automation fee on Aave. |
+| B2C | 0.3% of the de-risked notional, charged only when Halyard acts. DeFi Saver charges a similar automation fee on Aave. |
 | Keeper tip | 0.1% of the sold notional for whoever executes `protect`. This keeps the system alive without our own infrastructure. |
 | B2B (protocols) | More borrowing against bStocks means more interest revenue for Venus, with lower weekend bad-debt risk. That supports grants, fee subsidies or a native integration. |
 | B2B2C (wallets) | A "Protect" module inside Binance Wallet or Trust Wallet with revenue share. |
@@ -95,7 +95,7 @@ With the guardian, the user borrows $5,000 (health 1.40):
 
 The market is small today: about $640k of bStock collateral on Venus, plus some on Lista. Caps keep rising (NVDAB went from 450 to 1,500 and is almost full).
 
-The pitch is the infrastructure that lets stock-collateral lending scale, not a large current TAM. If the guardian moves stock-heavy accounts from a median ~42% buffer to ~30%, borrowing on today's collateral alone grows by a meaningful share, and that grows with every cap increase.
+The pitch is the infrastructure that lets stock-collateral lending scale, not a large current TAM. If Halyard moves stock-heavy accounts from a median ~42% buffer to ~30%, borrowing on today's collateral alone grows by a meaningful share, and that grows with every cap increase.
 
 ## Prior art
 

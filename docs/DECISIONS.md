@@ -9,7 +9,7 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 - **Why:** On-chain, 59 Venus accounts borrow against bStocks, but none of the stock-heavy ones are close to liquidation. The riskiest needs a 23% drop and the median about 42%. The real loss is idle borrowing power. Chosen by the user.
 
 ### D2. Scope: Venus Core Pool, bStocks only
-- **Decision:** The guardian only sells bStock collateral (vTSLAB, vNVDAB, vSPCXB). Health counts every asset and debt in the account. Lista lending positions are out of scope for the MVP.
+- **Decision:** Halyard only sells bStock collateral (vTSLAB, vNVDAB, vSPCXB). Health counts every asset and debt in the account. Lista lending positions are out of scope for the MVP.
 - **Why:** bStocks must stay central for the hackathon. Venus holds most bStock collateral and has the delegation primitives we verified.
 
 ### D3. Flash loan source: Lista Moolah
@@ -33,10 +33,10 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 - **Revisit if:** Chainlink CRE Early Access is granted. A CRE cron workflow calling `protect` would be a clean upgrade, but it is not required.
 
 ### D6. Special prize target: Agentic Wallet / Wallet Skills
-- **Decision:** Ship a `gap-guardian` skill in the Binance Skills Hub format that drives the guardian through `baw contract-call`.
+- **Decision:** Ship a `halyard` skill in the Binance Skills Hub format that drives Halyard through `baw contract-call`.
 - **Why:** It runs in the user's own agent, needs no backend, and directly uses the sponsor's stack.
 
-### D7. The guardian computes everything; callers pass only the user
+### D7. Halyard computes everything; callers pass only the user
 - **Decision:** `protect(user)` decides the trigger, the collateral and the amount on-chain.
 - **Why:** This removes any ability for a permissionless caller to pick harmful parameters (amount griefing, sandwich setups beyond the slippage cap).
 
@@ -55,3 +55,7 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 ### D11. Fork testing with an archive RPC
 - **Decision:** Use a NodeReal MegaNode free key (stored in `.env`, never committed) for Foundry fork tests.
 - **Why:** Free public RPCs keep only about 7 minutes of historical state, which breaks fork tests.
+
+### D12. Product name: Halyard
+- **Decision:** The product is called **Halyard**. Contract `HalyardVault`, Wallet Skill `halyard`.
+- **Why:** A halyard is the line that raises a sail. The metaphor is more speed with control, which matches the capital efficiency positioning. No crypto project uses the name, while Keel and Ballast are already taken. Chosen by the user over Prebell, Headroom and Afterbell.
