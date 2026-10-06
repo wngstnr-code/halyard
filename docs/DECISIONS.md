@@ -59,3 +59,11 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 ### D12. Product name: Halyard
 - **Decision:** The product is called **Halyard**. Contract `HalyardVault`, Wallet Skill `halyard`.
 - **Why:** A halyard is the line that raises a sail. The metaphor is more speed with control, which matches the capital efficiency positioning. No crypto project uses the name, while Keel and Ballast are already taken. Chosen by the user over Prebell, Headroom and Afterbell.
+
+### D13. Health targets have a 1.3 floor
+- **Decision:** `targetHealthBps` and `weekendHealthBps` must be at least 13,000.
+- **Why:** Venus `redeemAllowed` checks the collateral factor, not the liquidation threshold. For SPCXB (CF 50%, LT 65%), an LT-based health below 1.3 means the final state is still short on CF, and the redeem would be rejected. 1.3 covers all three bStock markets.
+
+### D14. Only USDT debt is repaid in the MVP
+- **Decision:** Halyard repays vUSDT debt only. Users whose debt is in another asset see no protection plan.
+- **Why:** One flash loan asset and one swap leg keep the contract small and auditable. USDT is the deepest stablecoin on Venus and in the bStock pools.

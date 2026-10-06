@@ -1,6 +1,6 @@
 # Architecture
 
-Status: design locked, no code yet. Every external dependency below was verified on Oct 6, 2026 (evidence in `docs/RESEARCH.md`, rationale in `docs/DECISIONS.md`).
+Status: contracts implemented in `contracts/` (HalyardVault, MarketClock), 19 tests passing including mainnet fork tests. Every external dependency below was verified on Oct 6, 2026 (evidence in `docs/RESEARCH.md`, rationale in `docs/DECISIONS.md`).
 
 ## Overview
 
@@ -56,7 +56,17 @@ Requirements:
 - Works in **raw token units** everywhere. bStocks implement EIP-8056 scaled UI amounts, and NVDAB already has a `uiMultiplier` of 1.000778. Venus, the oracle and the DEX all use raw units.
 - Small enough to audit by eye (target under 300 lines for the core).
 
-Per-user policy:
+Per-user policy (validated in `setPolicy`):
+
+| Field | Allowed range | Notes |
+|---|---|---|
+| `minHealthBps` | at least 1.01 | must be below the target |
+| `targetHealthBps` | 1.3 to 3.0 | see D13 for the 1.3 floor |
+| `weekendHealthBps` | 1.3 to 3.0 | |
+| `maxSlippageBps` | 50 to 300 | |
+| `sellable` | 1 to 3 | registered bStock vTokens, no duplicates |
+| `expiry` | in the future | |
+
 
 ```solidity
 struct Policy {
@@ -158,3 +168,18 @@ The Binance Web3 RWA API (`www.binance.com/bapi/...`) is not used by the fronten
   - Halyard never holds a balance after a transaction.
 - MarketClock unit tests across DST switches, every 2026 and 2027 holiday, and the early closes.
 - Live mainnet run with a small real position before recording the demo.
+
+## Implementation notes
+
+- **Health.** Venus `getAccountLiquidity` gives LT-weighted collateral minus debt. Debt is summed from `borrowBalanceStored` over `getAssetsIn`, priced with the same ResilientOracle, plus `getVAIRepayAmount`. Per-asset LT comes from `getEffectiveLtvFactor(user, vToken, 1)`, so Venus per-user pools are respected.
+- **Only USDT debt is repaid** in the MVP (D14). The repay amount is capped by the user's vUSDT borrow balance.
+- **Haircut.** The repay amount solves `(W - l*k*x) / (D - x) = T`, where `k = 1 / (1 - (maxSlippage + fee + tip))`. Proceeds above what is needed repay more USDT debt, and anything beyond the debt goes back to the user.
+- **Venus return codes.** `repayBorrowBehalf` and `redeemUnderlyingBehalf` return error codes instead of reverting. Every call is checked and turned into `VenusError(code)`.
+- **Build.** The compiler needs `via_ir = true` (stack depth in `_plan`).
+- **Fork test results** (Oct 6 state):
+
+  | Test | Health | Sold | Repaid | Fee + tip |
+  |---|---|---|---|---|
+  | Low health | 1.2138 to 1.4051 | 1.594 TSLAB | 596.59 USDT | 2.43 USDT |
+  | Pre-close on the real Fri Oct 2 19:30 UTC block | 1.5339 to 1.8060 | | | |
+  | Real borrower `0xAA40...57E9` | 1.3912 to 1.6047 | 12.75 TSLAB | 4,772.28 USDT | 19.46 USDT |
