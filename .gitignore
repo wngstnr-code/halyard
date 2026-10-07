@@ -15,3 +15,6 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/**/dry-run/
 .brand-preview/
+
+# Private working notes (DevEx report drafting)
+notes/
