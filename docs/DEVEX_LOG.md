@@ -87,3 +87,12 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 - Also: CONTRIBUTING says a skill with `scripts/` must explain them in a skill `README.md`, but the example tree names the main file `skill.md` while every existing skill uses `SKILL.md`.
 - `contract-call` docs are clear about the preview then execute flow and the `--value` unit (wei). Nothing explains how a skill should encode calldata, so we wrote a zero-dependency encoder and checked its output byte for byte against `cast calldata`.
 - Cost: about 20 minutes of reading before writing.
+
+### 2026-10-07: End-to-end test on an Anvil fork
+- Tried: running every write (delegate, setPolicy, protect, clearPolicy, revoke) from the frontend against `anvil --fork-url` with `--auto-impersonate`, as a real Venus borrower.
+- Venus oracle on a fork: about 3 minutes after the fork started, `ResilientOracle.getUnderlyingPrice` reverted with `invalid resilient oracle price` for vBNB, vBTC and vETH, while bStock and USDT prices still worked. The error does not say which check failed (staleness). Any account holding those markets can no longer be read. Fixed by restarting the fork and calling `anvil_setBlockTimestampInterval 1` so block time only moves one second per block. Cost about 20 minutes.
+- wagmi's EIP-6963 discovery (`multiInjectedProviderDiscovery`, on by default) reconnected a real browser wallet even though the config listed only the mock connector. On a fork that would have signed on mainnet. Disabled it in fork mode.
+- RainbowKit's modal does not list connectors that are not RainbowKit wallets (the wagmi `mock` connector), so the test account is auto-connected with `defaultConnected: true` instead.
+- BSC USDT reverts `transfer` to the zero address (`BEP20: transfer to the zero address`). Our keeper's watch-only mode simulated `protect` without a sender, so the keeper tip went to `address(0)` and every simulation reverted with an empty reason in viem's message. Fixed by simulating from a placeholder address.
+- `next dev` (Next.js 16.3) wrote `AGENTS.md` and `CLAUDE.md` into the app folder on first start. Disabled with `agentRules: false` in `next.config.ts`.
+- Result on the fork, demo borrower: health 1.4302 to 1.6035, 10.3519 TSLAB sold, 3,864.63 USDT repaid plus about 39 USDT of leftover proceeds, 11.76 USDT fee, 3.92 USDT tip, vault balance zero after the call.
