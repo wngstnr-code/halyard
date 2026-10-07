@@ -83,3 +83,7 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 ### D18. SKHYB and later bStock listings are not supported
 - **Decision:** HalyardVault supports TSLAB, NVDAB and SPCXB only. Other Venus-listed bStocks (SKHYB today) are shown in the position but cannot be in a policy.
 - **Why:** The vault is immutable with no admin, so its market list is fixed at deployment. Adding a market means deploying a new vault, which we defer until after the hackathon.
+
+### D19. Binance Web3 API only in local tools, never in the frontend
+- **Decision:** The Wallet Skill (`rwa` command) and the keeper call the Binance Web3 API with the user's own key pair. The static frontend does not.
+- **Why:** Every Web3 API request is signed with HMAC-SHA256 using a secret key. A static site would have to ship that secret to every visitor, and the rules forbid a backend that could hold it. Local tools keep the secret on the user's machine.

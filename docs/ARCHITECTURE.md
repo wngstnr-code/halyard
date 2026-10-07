@@ -127,7 +127,7 @@ Failure behavior:
 1. **Permissionless `protect`** with a 0.1% tip. Any BSC bot can earn it, and execution is fully validated on-chain.
 2. **Keeper tab in the frontend.** While open, it polls `canProtect` for users with active policies (discovered from `PolicySet` events) and sends `protect` from the connected wallet, earning the tip.
 3. **Wallet Skill.** The user's own AI agent with the Binance Agentic Wallet can call `canProtect` and `protect` through `baw contract-call`. Scheduling depends on the agent host (for example a recurring task in the user's agent).
-4. **`keeper/` script.** A small open-source Node script (viem only), documented so anyone (including the user) can run it on their own machine. Watch-only without a key, `DRY_RUN=1` to simulate, live with `KEEPER_PRIVATE_KEY`. It is not part of the protocol and not a service we host.
+4. **`keeper/` script.** A small open-source Node script (viem only), documented so anyone (including the user) can run it on their own machine. Watch-only without a key, `DRY_RUN=1` to simulate, live with `KEEPER_PRIVATE_KEY`. With a Binance Web3 API key pair it also logs RWA market status each pass, asks the Transaction API to simulate `protect` as a second opinion, and broadcasts the locally signed transaction through the Transaction API with MEV protection (falls back to the RPC). It is not part of the protocol and not a service we host.
 
 Rejected options (details in `docs/DECISIONS.md`):
 - Gelato automation: shut down on Mar 31, 2026.
@@ -137,6 +137,8 @@ Rejected options (details in `docs/DECISIONS.md`):
 ## Wallet Skill: `halyard`
 
 Lives in `skills/halyard/`. Follows the Binance Skills Hub format (`SKILL.md` with `name`, `description`, `version`, `license` frontmatter plus `references/` and `scripts/`). It depends on the `binance-agentic-wallet` skill and its `baw` CLI.
+
+The `rwa` command uses the Binance Web3 API (Market API, RWA Data: `rwa/tokens`, `rwa/price`, `rwa/underlying-market`) to report each bStock's market status, corporate actions and earnings windows, and the gap between the Binance on-chain price and the Venus oracle.
 
 `scripts/halyard.mjs` is a zero-dependency Node script (Node 22+) that reads Halyard and Venus state over public RPC and encodes calldata. It never signs: every write is `baw contract-call preview`, user confirmation, then `execute`.
 
