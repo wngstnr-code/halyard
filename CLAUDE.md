@@ -27,10 +27,10 @@ Read these before doing anything:
 - Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 21 tests (unit plus mainnet fork) passing.
 - **Deployed:** HalyardVault `0x6137aCd41F9828dE0836EA5a776e95184bF7Df10` on BSC mainnet (block 126043949), verified exact match on Sourcify and BscScan. Address and start block are in `contracts/deployments/56.json`. It is immutable, so a contract change means a new deployment and a new address.
 - **Frontend done** in `frontend/`: a single static Next.js app (`output: 'export'`, no API routes, no server). Pages: landing, `/dashboard`, `/protect`, `/simulator`, `/keeper`. Halyard logic lives in `frontend/src/lib/halyard/` (ABIs, MarketClock port, plan and gap simulation, event scans, wallet providers). Run with `pnpm --dir frontend dev`; `pnpm --dir frontend build` writes `frontend/out/`.
-- The on-chain Protect and Keeper transactions are built but not yet run end to end; that needs the demo position below.
+- Every frontend write (delegate, setPolicy, protect from the Keeper page, clearPolicy, revoke) passed end to end on an Anvil fork as a real borrower (see the fork section in `frontend/README.md`). Not yet run on mainnet itself; that needs the demo position below.
 - **Wallet Skill** in `skills/halyard/` (SKILL.md, references, zero-dependency `scripts/halyard.mjs`). Reads and calldata verified against mainnet and `cast`; the `baw contract-call` flow itself is untested until the user has a VPN and Developer Mode.
 - **Keeper script** in `keeper/` (`npm run once` watch-only pass verified on mainnet).
-- Next step: deploy the frontend, then end-to-end transaction tests with the demo position.
+- Next step: deploy the frontend, then one live mainnet run with the demo position (also needed for the `baw` flow).
 - Blocked on the user for:
   1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
   2. Deployer keystore `halyard-deployer` (`0x18E3fe26452ca4320a6C5365D349598cd855EeD7`, also the fee recipient) exists and is funded. A small bStock plus USDT position for the live demo is still needed.
