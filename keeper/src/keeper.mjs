@@ -18,6 +18,7 @@ const VENUS_COMPTROLLER = '0xfD36E2c2a6789Db23113685031d7F16329158384'
 const LOGS_BLOCK_RANGE = 49_999n
 const LOGS_CONCURRENCY = 4
 const BSCSCAN_URL = 'https://bscscan.com'
+const WATCH_ONLY_SENDER = '0x000000000000000000000000000000000000dEaD'
 
 const DEFAULT_RPC = 'https://bsc-rpc.publicnode.com'
 // Public NodeReal endpoint from the BNB Chain docs. The only free one that serves wide eth_getLogs.
@@ -150,7 +151,8 @@ async function handleAccount(user, now) {
   }
 
   // The vault re-validates everything on-chain, so a revert here means someone else got there first or the price moved.
-  const from = account?.address
+  // Without a key, simulate from a placeholder: the tip transfer reverts when sent to the zero address.
+  const from = account?.address ?? WATCH_ONLY_SENDER
   let request
   try {
     ;({ request } = await client.simulateContract({
