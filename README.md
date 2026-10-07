@@ -15,12 +15,14 @@ The cost is a few dollars instead of a liquidation.
 - No backend: static frontend and permissionless keepers
 - A Wallet Skill so users can manage protection in plain language
 
+**Live app: [halyard-bnb.vercel.app](https://halyard-bnb.vercel.app)**
+
 Built for [BNB Hack: Tokenized Stocks Edition](https://www.bnbchain.org/en/hackathons/tokenized-stocks).
 
 ## Status
 
 - **HalyardVault on BSC mainnet:** [`0x6137aCd41F9828dE0836EA5a776e95184bF7Df10`](https://bscscan.com/address/0x6137aCd41F9828dE0836EA5a776e95184bF7Df10#code) (source verified).
-- **Frontend:** done, a static app in [`frontend/`](frontend/). Not deployed yet.
+- **Live app:** [halyard-bnb.vercel.app](https://halyard-bnb.vercel.app) (static frontend in [`frontend/`](frontend/), BSC mainnet).
 - **Wallet Skill:** [`skills/halyard/`](skills/halyard/) for the Binance Agentic Wallet.
 - **Keeper script:** [`keeper/`](keeper/), optional and open source.
 
