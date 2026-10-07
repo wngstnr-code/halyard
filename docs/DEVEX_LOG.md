@@ -96,3 +96,9 @@ Raw, dated notes for the Developer Experience Report. Facts only: what we tried,
 - BSC USDT reverts `transfer` to the zero address (`BEP20: transfer to the zero address`). Our keeper's watch-only mode simulated `protect` without a sender, so the keeper tip went to `address(0)` and every simulation reverted with an empty reason in viem's message. Fixed by simulating from a placeholder address.
 - `next dev` (Next.js 16.3) wrote `AGENTS.md` and `CLAUDE.md` into the app folder on first start. Disabled with `agentRules: false` in `next.config.ts`.
 - Result on the fork, demo borrower: health 1.4302 to 1.6035, 10.3519 TSLAB sold, 3,864.63 USDT repaid plus about 39 USDT of leftover proceeds, 11.76 USDT fee, 3.92 USDT tip, vault balance zero after the call.
+
+### 2026-10-07: Deploying the static export to Vercel
+- `vercel build` ran `npm install` by default and failed on a pnpm lockfile (`Command "npm install" exited with 1`, plus `Error while parsing config file: pnpm-lock.yaml` for lockfile v9 from pnpm 12). Fixed with `installCommand` and `buildCommand` in `vercel.json`.
+- With `"framework": "nextjs"` and `output: 'export'`, the build failed with `The file ".../out/routes-manifest.json" couldn't be found`. Setting `"framework": null` and `"outputDirectory": "out"` serves the export as plain static files.
+- An alias set with `vercel alias set` (`halyard-bnb.vercel.app`) answered every path with a 302 to `vercel.com/sso-api`, because Deployment Protection covers every URL that is not a project domain. `vercel domains add halyard-bnb.vercel.app` (inside the linked folder) made it public. The two-argument form `vercel domains add <domain> <project>` only printed `missing_arguments`.
+- Total about 15 minutes. Site checked live: every page 200, unknown paths 404, Keeper and Simulator read mainnet.
