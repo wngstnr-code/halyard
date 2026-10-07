@@ -22,21 +22,21 @@ Read these before doing anything:
 - bStocks must stay central to the product.
 - The HalyardVault must never contain a code path that borrows on behalf of a user.
 
-## Current status (2026-10-06)
+## Current status (2026-10-07)
 
 - Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 21 tests (unit plus mainnet fork) passing.
 - **Deployed:** HalyardVault `0x6137aCd41F9828dE0836EA5a776e95184bF7Df10` on BSC mainnet (block 126043949), verified exact match on Sourcify and BscScan. Address and start block are in `contracts/deployments/56.json`. It is immutable, so a contract change means a new deployment and a new address.
 - **Frontend done** in `frontend/`: a single static Next.js app (`output: 'export'`, no API routes, no server). Pages: landing, `/dashboard`, `/protect`, `/simulator`, `/keeper`. Halyard logic lives in `frontend/src/lib/halyard/` (ABIs, MarketClock port, plan and gap simulation, event scans, wallet providers). Run with `pnpm --dir frontend dev`; `pnpm --dir frontend build` writes `frontend/out/`.
-- Every frontend write (delegate, setPolicy, protect from the Keeper page, clearPolicy, revoke) passed end to end on an Anvil fork as a real borrower (see the fork section in `frontend/README.md`). Not yet run on mainnet itself; that needs the demo position below.
-- **Wallet Skill** in `skills/halyard/` (SKILL.md, references, zero-dependency `scripts/halyard.mjs`). Reads and calldata verified against mainnet and `cast`; the `baw contract-call` flow itself is untested until the user has a VPN and Developer Mode.
-- **Keeper script** in `keeper/` (`npm run once` watch-only pass verified on mainnet).
 - **Deployed:** https://halyard-bnb.vercel.app (Vercel project `halyard`, static, built locally with `vercel build --prod` then `vercel deploy --prebuilt --prod`).
-- Next step: one live mainnet run with the demo position (also needed for the `baw` flow), then the demo video and the DevEx report (outline in git-ignored `notes/`).
-- Blocked on the user for:
-  1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
-  2. Deployer keystore `halyard-deployer` (`0x18E3fe26452ca4320a6C5365D349598cd855EeD7`, also the fee recipient) exists and is funded. A small bStock plus USDT position for the live demo is still needed.
-  3. A VPN when testing the `baw` CLI or Binance APIs (Binance domains are ISP-blocked in Indonesia).
-  4. Developer Mode enabled in the Binance App for the Agentic Wallet `contract-call` flow.
+- Every frontend write (delegate, setPolicy, protect from the Keeper page, clearPolicy, revoke) passed end to end on an Anvil fork as a real borrower (see the fork section in `frontend/README.md`). Not yet run on mainnet itself; that needs the demo position below.
+- **Wallet Skill** in `skills/halyard/` (SKILL.md, references, zero-dependency `scripts/halyard.mjs`). Reads and calldata verified against mainnet and `cast`. The `rwa` command (Binance Web3 API, RWA Data) verified live. The `baw contract-call` flow is untested: `baw` sign-in needs the Binance App, which the user does not have.
+- **Keeper script** in `keeper/`. `npm run once` watch-only pass verified on mainnet, with the Binance Web3 API on (RWA status logging and Transaction API simulate verified live). Broadcast through the Transaction API with MEV protection is untested until a protection is due.
+- **Binance Web3 API:** key pair in the root `.env` as `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY` (never commit or print them). Used only by the skill and the keeper, never the frontend (D19). `rwa/underlying-market` returns `marketStatus: null`; read `openState` and `reasonCode`.
+- **Hackathon forms:** registration submitted 2026-10-07 with `wangsitsada1234@gmail.com`; use the same email on the submission and DevEx forms.
+- **Demo video:** `brag-output/brag.mp4` (3:00, git-ignored), not uploaded yet.
+- **DevEx report:** written by the user. Fact sheet in git-ignored `notes/devex-report-outline.md`, ordered by the 8 form pages.
+- Still open on the user side: upload the video, write and send the DevEx report, fill the submission form (needs a BSC wallet address), check the site on a real phone.
+- Optional: one live mainnet `protect` with a small demo position. The deployer keystore `halyard-deployer` (`0x18E3fe26452ca4320a6C5365D349598cd855EeD7`, also the fee recipient) is funded; a small bStock plus USDT Venus position is still needed. The user runs any funding or borrowing themselves.
 
 ## Writing conventions
 
@@ -70,4 +70,4 @@ The Developer Experience Report is 25% of the score and must be written by a hum
 - The public NodeReal endpoint from the BNB Chain docs (`https://bsc-mainnet.nodereal.io/v1/64a9df0874fb4a93b9d0a3849de012d3`) allows browser CORS and `eth_getLogs` up to 49,999 blocks with full history. The frontend uses it for event scans.
 - Verified bStock token sources are on Sourcify (chain 56), not on BscScan.
 - `https://data-api.binance.vision/api/v3/klines` serves bStock candles (TSLABUSDT, NVDABUSDT, SPCXBUSDT) with CORS enabled.
-- Binance domains (`binance.com`, `developers.binance.com`) are ISP-blocked from the user's network.
+- Binance domains (`binance.com`, `developers.binance.com`) are ISP-blocked from the user's network. The Web3 API gateway (`web3.binance.com/build`) was reachable from Node on 2026-10-07; its docs pages answer `curl` with an empty 202, so read them in a browser.
