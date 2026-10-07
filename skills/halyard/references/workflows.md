@@ -119,6 +119,22 @@ Either one alone already stops protection: without a policy or without delegatio
 
 ---
 
+## 5. bStock market status (Binance Web3 API)
+
+```bash
+node scripts/halyard.mjs rwa
+```
+
+Needs `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY` in the environment. If they are missing, say so and continue without it; nothing else in this skill depends on it.
+
+Present one row per bStock: market status and reason, Binance on-chain price, reference price, Venus oracle price and the gap between them.
+
+- `reasonCode: ASSET_PAUSED` with a corporate action (`stock_split`, `cash_dividend`, `merger`, ...) or `ASSET_LIMITED` (earnings): show the `warning`. The Venus oracle and the collateral value can move sharply when it resolves; suggest the user checks their policy and health with flow 1 and flow 3. Do not tell them what to do.
+- `marketStatus: closed` with "Weekend or Holiday": the next open is when the oracle reprices. Pair it with `market` to see whether the pre-close window is active.
+- A large `onChainVsOraclePct` means the DEX and the oracle disagree; a protection run sells against the oracle price with the policy's slippage cap, so it may revert instead of selling badly.
+
+---
+
 ## Simulate
 
 To get a readable reason for a failure, run the same transaction as an `eth_call`:

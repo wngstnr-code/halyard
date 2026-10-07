@@ -27,6 +27,7 @@ halyard/
 - **What it does not do:** sign, hold keys or broadcast. The `baw` CLI does that.
 - **Dependencies:** Node.js 22 or newer. No npm packages.
 - **Run:** `node scripts/halyard.mjs position <address>`. See [references/script.md](references/script.md) for every command.
+- **Binance Web3 API (optional):** the `rwa` command signs requests with `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY` (from https://web3.binance.com/en/dev-portal). The secret stays in the local environment.
 - **Network:** `https://bsc-rpc.publicnode.com`, falling back to the public NodeReal endpoint listed in the BNB Chain docs. Override with `HALYARD_RPC_URL`.
 
 ## Requirements

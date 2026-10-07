@@ -29,6 +29,7 @@ This skill reads positions with a local zero-dependency script and sends every t
 
 - Node.js 22 or newer (for `scripts/halyard.mjs`).
 - The `binance-agentic-wallet` skill and its `baw` CLI, signed in. Run its preflight checks first.
+- Optional: a Binance Web3 API key pair from https://web3.binance.com/en/dev-portal in `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY`, for the `rwa` command. Never ask the user to paste the secret into chat; it belongs in the environment.
 - **Developer Mode enabled in the Binance App.** `contract-call` needs it. Check with `baw wallet settings --json` (`devMode.enabled`). If it is off, tell the user to enable it in the Binance App; it cannot be enabled from the CLI.
 
 ## Command Routing
@@ -37,6 +38,7 @@ This skill reads positions with a local zero-dependency script and sends every t
 |---|---|---|
 | Show my bStock loan, health, how much more I can borrow | `node scripts/halyard.mjs position <wallet>` | [workflows.md](references/workflows.md#1-show-the-position) |
 | Is the US market open / are we in the pre-close window | `node scripts/halyard.mjs market` | [script.md](references/script.md) |
+| Is a bStock halted, in an earnings window or a corporate action; Binance price vs the Venus oracle | `node scripts/halyard.mjs rwa` (Binance Web3 API keys) | [workflows.md](references/workflows.md#5-bstock-market-status-binance-web3-api) |
 | Protect my position (set up or change a policy) | `calldata delegate`, `calldata set-policy ...`, each through `baw contract-call` | [workflows.md](references/workflows.md#2-turn-protection-on) |
 | Does anything need protection / run protection | `plan <wallet>`, then `calldata protect <wallet>` through `baw contract-call` | [workflows.md](references/workflows.md#3-check-and-run-protection) |
 | Stop protecting | `calldata clear-policy`, then `calldata revoke` through `baw contract-call` | [workflows.md](references/workflows.md#4-turn-protection-off) |

@@ -17,6 +17,10 @@
 //       protect <address>    Run protection for an account (permissionless, earns the keeper tip)
 //   simulate --from <address> --to <address> --data <hex>
 //                            eth_call a transaction and decode a revert into a Halyard error name
+//   rwa                      Binance Web3 API RWA data for the bStocks: market status, corporate
+//                            actions, on-chain vs reference price, compared with the Venus oracle.
+//                            Needs BINANCE_WEB3_API_KEY and BINANCE_WEB3_SECRET_KEY.
+//                            eth_call a transaction and decode a revert into a Halyard error name
 //
 // Output is always one JSON object on stdout. Exit code 1 on invalid input, 2 on RPC failure.
 
@@ -148,7 +152,9 @@ function decString(hex) {
   if (ws.length === 1) return Buffer.from(ws[0], 'hex').toString('utf8').replace(/\0+$/, '');
   const start = Number(decUint(ws[0])) / 32;
   const length = Number(decUint(ws[start]));
-  return Buffer.from(ws.slice(start + 1).join(''), 'hex').subarray(0, length).toString('utf8');
+  return Buffer.from(ws.slice(start + 1).join(''), 'hex')
+    .subarray(0, length)
+    .toString('utf8');
 }
 
 // ---- JSON-RPC ----
@@ -199,6 +205,40 @@ function describeRevert(data) {
   const args = words(data.slice(10));
   if (name === 'Error') return `Error(${decString('0x' + args.join(''))})`;
   return `${name}(${args.map((w) => decUint(w).toString()).join(', ')})`;
+}
+
+// ---- Binance Web3 API (optional, signed with the user's own key) ----
+const WEB3_API = 'https://web3.binance.com';
+const web3Keys = () =>
+  process.env.BINANCE_WEB3_API_KEY && process.env.BINANCE_WEB3_SECRET_KEY
+    ? { apiKey: process.env.BINANCE_WEB3_API_KEY, secretKey: process.env.BINANCE_WEB3_SECRET_KEY }
+    : null;
+
+async function web3Get(path, query) {
+  const keys = web3Keys();
+  if (!keys) throw fail('Binance Web3 API keys missing: set BINANCE_WEB3_API_KEY and BINANCE_WEB3_SECRET_KEY');
+  const { createHmac } = await import('node:crypto');
+  // The signed path must carry the /build prefix and the query exactly as sent.
+  const requestPath = `/build${path}?${new URLSearchParams(query)}`;
+  const timestamp = new Date().toISOString();
+  const sign = createHmac('sha256', keys.secretKey)
+    .update(timestamp + 'GET' + requestPath, 'utf8')
+    .digest('base64');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(WEB3_API + requestPath, {
+      headers: { 'X-OC-APIKEY': keys.apiKey, 'X-OC-TIMESTAMP': timestamp, 'X-OC-SIGN': sign },
+      signal: ctrl.signal,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.code !== 0) throw fail(`Web3 API ${body.code ?? res.status}: ${body.msg ?? res.statusText} (${path})`, 2);
+    return body.data;
+  } catch (error) {
+    throw error.exitCode ? error : fail(`Web3 API request failed: ${error.message} (${path})`, 2);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ---- formatting ----
@@ -357,8 +397,7 @@ async function readPosition(user) {
     vaiDebtUsd: usd(num(vaiDebt)),
     borrowLimitUsd: usd(borrowLimit),
     // How far all bStock prices can fall together before the account can be liquidated.
-    bStockDropToLiquidationPct:
-      debt > 0 && bStockWeighted > 0 ? (((weighted - debt) / bStockWeighted) * 100).toFixed(2) : null,
+    bStockDropToLiquidationPct: debt > 0 && bStockWeighted > 0 ? (((weighted - debt) / bStockWeighted) * 100).toFixed(2) : null,
     extraBorrowUsdt: {
       atHealth1_50: usd(headroom(1.5)),
       atHealth1_40: usd(headroom(1.4)),
@@ -373,6 +412,54 @@ async function readPosition(user) {
     },
     market,
   };
+}
+
+async function readRwa() {
+  const tokens = BSTOCKS.map((b) => b.token);
+  const [list, prices] = await Promise.all([
+    web3Get('/api/v1/dex/market/rwa/tokens', { binanceChainId: '56', platformId: 'bstock' }),
+    web3Get('/api/v1/dex/market/rwa/price', { binanceChainId: '56', tokenContractAddresses: tokens.join(',') }),
+  ]);
+  const rows = Array.isArray(list) ? list : (list?.list ?? list?.items ?? []);
+  const priceRows = Array.isArray(prices) ? prices : [];
+
+  const out = [];
+  // One request per token: the gateway allows 5 requests per second per endpoint.
+  for (const b of BSTOCKS) {
+    const market = await web3Get('/api/v1/dex/market/rwa/underlying-market', {
+      binanceChainId: '56',
+      tokenContractAddress: b.token,
+    });
+    const m = Array.isArray(market) ? market[0] : market;
+    const info = rows.find((r) => same(r.tokenContractAddress, b.token)) ?? {};
+    const price = priceRows.find((r) => same(r.tokenContractAddress, b.token)) ?? {};
+    const oracle = num(decUint(words(await call(VENUS_ORACLE, SELECTORS.getUnderlyingPrice + encAddress(b.vToken)))[0]));
+    const status = m?.statusInfo ?? info.statusInfo ?? {};
+    const tokenPrice = Number(price.tokenPrice ?? info.tokenPrice);
+
+    out.push({
+      symbol: b.symbol,
+      token: b.token,
+      underlying: info.underlyingTicker ?? null,
+      marketStatus: status.marketStatus ?? null,
+      tradable: status.openState ?? null,
+      reasonCode: status.reasonCode ?? null,
+      reasonMsg: status.reasonMsg ?? null,
+      tokenPriceUsd: price.tokenPrice ?? info.tokenPrice ?? null,
+      referencePriceUsd: price.referencePrice ?? info.referencePrice ?? null,
+      tokenToShareRatio: info.tokenToShareRatio ?? null,
+      venusOracleUsd: oracle.toFixed(4),
+      // Positive: the Binance on-chain price is above the price Venus uses for liquidations.
+      onChainVsOraclePct: Number.isFinite(tokenPrice) && oracle > 0 ? (((tokenPrice - oracle) / oracle) * 100).toFixed(2) : null,
+      warning:
+        status.reasonCode === 'ASSET_PAUSED'
+          ? `Corporate action (${status.reasonMsg}): the oracle and the collateral value may reprice when it resolves.`
+          : status.reasonCode === 'ASSET_LIMITED'
+            ? `Trading restricted (${status.reasonMsg}): expect a larger move at the next update.`
+            : null,
+    });
+  }
+  return { source: 'Binance Web3 API (Market API, RWA Data)', bStocks: out };
 }
 
 // ---- calldata ----
@@ -489,12 +576,14 @@ async function main([command, ...rest]) {
       return readPlan(address(rest[0], 'plan <address>'));
     case 'market':
       return readMarket();
+    case 'rwa':
+      return readRwa();
     case 'calldata':
       return buildCalldata(rest[0], rest.slice(1));
     case 'simulate':
       return simulate(rest);
     default:
-      throw fail('command must be one of: position, plan, market, calldata, simulate');
+      throw fail('command must be one of: position, plan, market, rwa, calldata, simulate');
   }
 }
 

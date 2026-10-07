@@ -17,6 +17,7 @@ RPC: `https://bsc-rpc.publicnode.com`, then the public NodeReal endpoint from th
 | `position <address>` | Venus position (health, weighted collateral, debt, borrow limit, per-asset rows), extra borrowing at health 1.50 / 1.40 / 1.30, bStock price drop to liquidation, Halyard delegation, policy, current plan, market state |
 | `plan <address>` | `HalyardVault.canProtect`: `due`, `trigger`, `healthNow`, and when due the target, the bStock to sell, repay amount, minimum swap output, fee and tip |
 | `market` | `HalyardVault.marketState`: `usMarketOpen`, `preCloseWindow` |
+| `rwa` | Binance Web3 API (Market API, RWA Data) per bStock: `marketStatus`, `tradable`, `reasonCode`, `reasonMsg`, `tokenPriceUsd`, `referencePriceUsd`, `tokenToShareRatio`, `venusOracleUsd`, `onChainVsOraclePct`, `warning`. Needs `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY` |
 
 Amounts are strings in token units (18 decimals unless the token says otherwise). USD fields have two decimals. Health is a string with four decimals, or `"no debt"`.
 
@@ -56,3 +57,15 @@ node scripts/halyard.mjs simulate --from <address> --to <address> --data <hex>
 ```
 
 Runs `eth_call` and returns `{ ok: true, returnData }` or `{ ok: false, revert }`, with HalyardVault custom errors decoded by name.
+
+## Binance Web3 API
+
+`rwa` calls three signed endpoints on `https://web3.binance.com/build` with the user's own key pair (HMAC-SHA256 over `timestamp + method + /build path with query + body`, headers `X-OC-APIKEY`, `X-OC-TIMESTAMP`, `X-OC-SIGN`):
+
+- `GET /api/v1/dex/market/rwa/tokens?binanceChainId=56&platformId=bstock`: underlying ticker and `tokenToShareRatio`.
+- `GET /api/v1/dex/market/rwa/price?binanceChainId=56&tokenContractAddresses=...`: on-chain price and reference price.
+- `GET /api/v1/dex/market/rwa/underlying-market?binanceChainId=56&tokenContractAddress=...`: `statusInfo` (`openState`, `marketStatus`, `reasonCode`, `reasonMsg`).
+
+`marketStatus` can be `null` (seen during US premarket hours); read `tradable` (`openState`) and `reasonCode` instead.
+
+Errors come back as `Web3 API <code>: <msg>` with exit code 2, for example `40101 Invalid API Key`, `40102` (bad signature), `42900` (rate limit, 5 requests per second per endpoint).
