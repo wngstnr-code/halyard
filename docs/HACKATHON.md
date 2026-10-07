@@ -68,6 +68,14 @@ One track: **Tokenized Stocks Products & Agents**. Build something people would 
 
    AI-assisted code is fine. **AI-generated reports are rejected.** The report has to be written by a human from real notes, which is why we keep `docs/DEVEX_LOG.md` up to date while building.
 
+## Forms and links
+
+- Registration (raises Binance Web3 API rate limits, not the submission): https://docs.google.com/forms/d/e/1FAIpQLScV9gD2wo4LBOI5IXqAX6P-Q3UeSwlChvAM3rHAAPtu6vISOA/viewform. Needs a Binance UID or the email of the Binance account that created a Web3 API key at https://web3.binance.com/en/dev-portal.
+- Project submission: https://docs.google.com/forms/d/e/1FAIpQLSdMtogkNnWzkI6xUifE78Ks4TohOM1YuWMuNgV-UPLVnpHD4Q/viewform
+- Use the **same contact email** on the registration, the project submission and the Developer Experience Report; that is how the organizers match them.
+- Builder Telegram group: https://t.me/+MhiOLT0YUnlmNWFk
+- Restricted jurisdictions: https://web3.binance.com/en/dev-docs/web3-api-prohibited-regions (US and territories, Canada, Netherlands, Iran, Cuba, North Korea, Crimea, Donetsk, Luhansk, UK, Japan conditionally). Indonesia is not listed (checked 2026-10-07).
+
 ## Provided stack
 
 Binance Web3 API modules:
