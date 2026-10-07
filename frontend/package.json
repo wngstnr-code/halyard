@@ -1,0 +1,48 @@
+{
+  "name": "halyard-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static frontend for Halyard: market-hours-aware protection for bStock loans on Venus, BNB Chain.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx serve out",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
+  },
+  "dependencies": {
+    "@chakra-ui/icons": "2.2.4",
+    "@chakra-ui/react": "2.10.10",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@rainbow-me/rainbowkit": "2.2.11",
+    "@tanstack/react-query": "5.103.3",
+    "echarts": "6.1.0",
+    "echarts-for-react": "3.0.6",
+    "framer-motion": "13.5.1",
+    "lodash": "4.18.1",
+    "lucide-react": "1.48.0",
+    "motion": "13.4.4",
+    "next": "16.3.8",
+    "nextjs-toploader": "3.9.17",
+    "prismjs": "1.30.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tinycolor2": "1.6.0",
+    "viem": "2.56.0",
+    "wagmi": "3.7.7"
+  },
+  "devDependencies": {
+    "@types/lodash": "4.17.25",
+    "@types/node": "24.19.0",
+    "@types/prismjs": "1.26.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/tinycolor2": "1.4.6",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3"
+  },
+  "packageManager": "pnpm@12.8.2"
+}

@@ -1,0 +1,53 @@
+:root {
+  --ease-out-cubic: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+:focus,
+:focus-visible,
+*[data-focus] {
+  box-shadow: none;
+  outline: none !important;
+  outline-width: 0 !important;
+  outline-color: transparent !important;
+  border-color: inherit !important;
+}
+
+:focus:not(input),
+:focus-visible:not(input),
+*[data-focus]:not(input) {
+  box-shadow: none !important;
+}
+
+html,
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #eceff2;
+  overflow-x: clip;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabular-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.picture {
+  height: 100%;
+  display: flex;
+  border-radius: 9999px;
+}
+
+.picture img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  flex-grow: 1;
+}
