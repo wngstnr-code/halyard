@@ -56,3 +56,14 @@ pnpm dev
 - Both variables are ignored unless the URL is on localhost (`src/lib/halyard/fork.ts`).
 - `anvil_setBlockTimestampInterval 1` keeps fork time from drifting. Venus price feeds for BNB, BTC and ETH have a staleness limit of a few minutes, and nothing updates them on a fork, so after a few minutes of wall-clock time every Venus read on an account holding those markets reverts with `invalid resilient oracle price`.
 - To make `protect` due right away, save a policy whose trigger is above the account's current health.
+
+## Deploy
+
+Live at [halyard-bnb.vercel.app](https://halyard-bnb.vercel.app). `vercel.json` serves `out/` as plain static files (no Next.js runtime) and pins the pnpm version for installs. Deploys are built locally and uploaded:
+
+```sh
+vercel build --prod
+vercel deploy --prebuilt --prod
+```
+
+Production env vars on Vercel: `NEXT_PUBLIC_WALLET_CONNECT_ID`, `NEXT_PUBLIC_SITE_URL`.
