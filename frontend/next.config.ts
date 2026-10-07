@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   // Pin the workspace root so Next does not pick up lockfiles from parent folders.
   turbopack: { root: process.cwd() },
+  // Do not let `next dev` write AGENTS.md and CLAUDE.md into the app folder.
+  agentRules: false,
 }
 
 export default nextConfig
