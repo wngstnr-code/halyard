@@ -127,7 +127,7 @@ Failure behavior:
 1. **Permissionless `protect`** with a 0.1% tip. Any BSC bot can earn it, and execution is fully validated on-chain.
 2. **Keeper tab in the frontend.** While open, it polls `canProtect` for users with active policies (discovered from `PolicySet` events) and sends `protect` from the connected wallet, earning the tip.
 3. **Wallet Skill.** The user's own AI agent with the Binance Agentic Wallet can call `canProtect` and `protect` through `baw contract-call`. Scheduling depends on the agent host (for example a recurring task in the user's agent).
-4. **`keeper/` script.** A small open-source Node script, documented so anyone (including the user) can run it on their own machine. It is not part of the protocol and not a service we host.
+4. **`keeper/` script.** A small open-source Node script (viem only), documented so anyone (including the user) can run it on their own machine. Watch-only without a key, `DRY_RUN=1` to simulate, live with `KEEPER_PRIVATE_KEY`. It is not part of the protocol and not a service we host.
 
 Rejected options (details in `docs/DECISIONS.md`):
 - Gelato automation: shut down on Mar 31, 2026.
@@ -136,7 +136,9 @@ Rejected options (details in `docs/DECISIONS.md`):
 
 ## Wallet Skill: `halyard`
 
-Follows the Binance Skills Hub format (`SKILL.md` with `name`, `description`, `version`, `license` frontmatter plus `references/`). It depends on the `binance-agentic-wallet` skill and its `baw` CLI.
+Lives in `skills/halyard/`. Follows the Binance Skills Hub format (`SKILL.md` with `name`, `description`, `version`, `license` frontmatter plus `references/` and `scripts/`). It depends on the `binance-agentic-wallet` skill and its `baw` CLI.
+
+`scripts/halyard.mjs` is a zero-dependency Node script (Node 22+) that reads Halyard and Venus state over public RPC and encodes calldata. It never signs: every write is `baw contract-call preview`, user confirmation, then `execute`.
 
 Intents:
 
@@ -154,10 +156,22 @@ Constraints from the Agentic Wallet:
 
 ## Frontend
 
-Static app (Next.js static export or Vite), all reads from chain:
-1. **Position and headroom.** Venus positions via `getAssetsIn`, `getAccountSnapshot` and `getAccountLiquidity`. Health, liquidation drop, and extra borrow at health 1.3, 1.4 and 1.5.
-2. **Gap Simulator.** Hourly candles from `data-api.binance.vision` (TSLABUSDT, NVDABUSDT, SPCXBUSDT, history since Jun 11, 2026, CORS `*`). It measures real pre-close to post-open moves and replays them against the user's position, with and without Halyard.
-3. **Halyard setup and history.** Policy form, delegate and revoke, `Protected` events with BscScan links, and the keeper tab toggle.
+A single Next.js app in `frontend/`, built as a static export (`output: 'export'`, no API routes, no server). `pnpm --dir frontend build` writes plain files to `frontend/out/` that any static host can serve. UI: Chakra UI with the Silver Harbor theme from `brand.md`. Wallets: wagmi, viem and RainbowKit, configured for BSC only.
+
+Pages:
+1. **Landing** (`/`).
+2. **Dashboard** (`/dashboard`). Venus position via `getAssetsIn`, `getAccountSnapshot`, `getEffectiveLtvFactor` and the ResilientOracle, plus `HalyardVault.health`. Health, liquidation drop, extra borrow at health 1.5, 1.4 and 1.3, the US market clock and `Protected` history. `?address=` opens any account read-only.
+3. **Protect** (`/protect`). Policy form validated with the same limits as the contract, a live preview of the plan (a TypeScript port of `_chooseCollateral`) with a PancakeSwap QuoterV2 quote, then `updateDelegate`, `setPolicy`, `clearPolicy` and revoke.
+4. **Simulator** (`/simulator`). Hourly candles from `data-api.binance.vision` (TSLABUSDT, NVDABUSDT, SPCXBUSDT, history since Jun 11, 2026, CORS `*`). It measures real pre-close to post-open moves and replays them against the user's position, with and without Halyard, plus a uniform stress test.
+5. **Keeper** (`/keeper`). Accounts discovered from `PolicySet` events with live status from `canProtect`. Anyone can send `protect` from the connected wallet; a watch mode polls and notifies.
+
+Halyard logic lives in `frontend/src/lib/halyard/`: ABIs, constants, a TypeScript port of `MarketClock` (tested against the NYSE calendar), plan and gap simulation, event scans and the wallet providers.
+
+RPC:
+- Reads (`eth_call`, multicall) go to `https://bsc-rpc.publicnode.com` with the public NodeReal endpoint as a fallback.
+- Event scans (`eth_getLogs`) go only to the public NodeReal endpoint listed in the BNB Chain docs, in 49,999-block chunks from the deploy block. publicnode and drpc reject historical or wide log queries.
+
+Wallet connection: with `NEXT_PUBLIC_WALLET_CONNECT_ID` set, RainbowKit shows MetaMask, Binance Wallet, Trust, OKX, Rabby and WalletConnect. Without it, the app falls back to wagmi's `injected()` connector, which still finds every installed browser wallet through EIP-6963.
 
 The Binance Web3 RWA API (`www.binance.com/bapi/...`) is not used by the frontend. It is unreachable from Indonesian ISPs without a VPN and its CORS policy is unverified. It may be used inside the Wallet Skill.
 
