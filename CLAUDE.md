@@ -24,9 +24,13 @@ Read these before doing anything:
 
 ## Current status (2026-10-06)
 
-- Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 19 tests (unit plus mainnet fork) passing.
+- Contracts done in `contracts/`: `HalyardVault`, `MarketClock`, interfaces, 21 tests (unit plus mainnet fork) passing.
 - **Deployed:** HalyardVault `0x6137aCd41F9828dE0836EA5a776e95184bF7Df10` on BSC mainnet (block 126043949), verified exact match on Sourcify and BscScan. Address and start block are in `contracts/deployments/56.json`. It is immutable, so a contract change means a new deployment and a new address.
-- Next step: the static frontend, then the Wallet Skill.
+- **Frontend done** in `frontend/`: a single static Next.js app (`output: 'export'`, no API routes, no server). Pages: landing, `/dashboard`, `/protect`, `/simulator`, `/keeper`. Halyard logic lives in `frontend/src/lib/halyard/` (ABIs, MarketClock port, plan and gap simulation, event scans, wallet providers). Run with `pnpm --dir frontend dev`; `pnpm --dir frontend build` writes `frontend/out/`.
+- The on-chain Protect and Keeper transactions are built but not yet run end to end; that needs the demo position below.
+- **Wallet Skill** in `skills/halyard/` (SKILL.md, references, zero-dependency `scripts/halyard.mjs`). Reads and calldata verified against mainnet and `cast`; the `baw contract-call` flow itself is untested until the user has a VPN and Developer Mode.
+- **Keeper script** in `keeper/` (`npm run once` watch-only pass verified on mainnet).
+- Next step: deploy the frontend, then end-to-end transaction tests with the demo position.
 - Blocked on the user for:
   1. Done: NodeReal MegaNode key is in `.env` as `BSC_ARCHIVE_RPC` (archive verified, never commit or print it).
   2. Deployer keystore `halyard-deployer` (`0x18E3fe26452ca4320a6C5365D349598cd855EeD7`, also the fee recipient) exists and is funded. A small bStock plus USDT position for the live demo is still needed.
@@ -61,7 +65,8 @@ The Developer Experience Report is 25% of the score and must be written by a hum
   - Pass `--rpc-timeout 300` to `cast` when hitting a cold fork.
   - NodeReal `eth_getLogs` rejects ranges of 50,000 blocks; 5,000 works.
 - `https://bsc-rpc.publicnode.com` works for latest-state `eth_call` but rejects archive and wide `eth_getLogs` requests.
-- `https://bsc.drpc.org` (free) allows `eth_getLogs` up to 10,000 blocks per call and rate limits aggressively.
+- `https://bsc.drpc.org` (free) now rejects every `eth_getLogs` range (checked 2026-10-06).
+- The public NodeReal endpoint from the BNB Chain docs (`https://bsc-mainnet.nodereal.io/v1/64a9df0874fb4a93b9d0a3849de012d3`) allows browser CORS and `eth_getLogs` up to 49,999 blocks with full history. The frontend uses it for event scans.
 - Verified bStock token sources are on Sourcify (chain 56), not on BscScan.
 - `https://data-api.binance.vision/api/v3/klines` serves bStock candles (TSLABUSDT, NVDABUSDT, SPCXBUSDT) with CORS enabled.
 - Binance domains (`binance.com`, `developers.binance.com`) are ISP-blocked from the user's network.
