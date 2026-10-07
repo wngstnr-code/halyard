@@ -67,3 +67,19 @@ Decisions that are settled. Do not reopen them without new evidence. Newest firs
 ### D14. Only USDT debt is repaid in the MVP
 - **Decision:** Halyard repays vUSDT debt only. Users whose debt is in another asset see no protection plan.
 - **Why:** One flash loan asset and one swap leg keep the contract small and auditable. USDT is the deepest stablecoin on Venus and in the bStock pools.
+
+### D15. Frontend: one static Next.js app, no template monorepo
+- **Decision:** Rebuild the frontend as a single Next.js app with `output: 'export'`, keeping only the UI pieces we use. All Balancer template code, packages and its `/api` routes are removed.
+- **Why:** The rules forbid a backend, and the template's API routes and multi-chain packages could not ship as a static site. A static export can be hosted anywhere and makes it obvious that no server is involved.
+
+### D16. Event scans through the public NodeReal endpoint
+- **Decision:** The browser reads `eth_getLogs` from the public NodeReal endpoint listed in the BNB Chain docs, in 49,999-block chunks starting at the vault deploy block. The keeper script uses the same default.
+- **Why:** publicnode rejects historical log queries and drpc rejects every range (checked Oct 6). The NodeReal endpoint allows browser CORS and full history up to 49,999 blocks per call, without a key of ours.
+
+### D17. Wallet connection falls back to injected wallets
+- **Decision:** RainbowKit's full wallet list is used only when `NEXT_PUBLIC_WALLET_CONNECT_ID` is set. Otherwise the app uses wagmi's `injected()` connector.
+- **Why:** RainbowKit throws without a WalletConnect project id, which crashed the app. EIP-6963 still discovers every installed browser wallet, so the app stays usable from a fresh clone.
+
+### D18. SKHYB and later bStock listings are not supported
+- **Decision:** HalyardVault supports TSLAB, NVDAB and SPCXB only. Other Venus-listed bStocks (SKHYB today) are shown in the position but cannot be in a policy.
+- **Why:** The vault is immutable with no admin, so its market list is fixed at deployment. Adding a market means deploying a new vault, which we defer until after the hackathon.
