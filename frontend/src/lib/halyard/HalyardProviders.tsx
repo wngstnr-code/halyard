@@ -14,10 +14,9 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode, useState } from 'react'
 import { fallback, http } from 'viem'
-import { bsc } from 'viem/chains'
 import { WagmiProvider, createConfig } from 'wagmi'
-import { injected } from 'wagmi/connectors'
-import { BSC_RPC_URLS } from '@/lib/halyard/constants'
+import { injected, mock } from 'wagmi/connectors'
+import { FORK_ACCOUNT, READ_RPC_URLS, halyardChain } from '@/lib/halyard/fork'
 
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_ID ?? ''
 
@@ -27,6 +26,8 @@ const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_ID ?? ''
 */
 function createConnectors() {
   if (typeof window === 'undefined') return []
+  // Local fork testing only, see fork.ts.
+  if (FORK_ACCOUNT) return [mock({ accounts: [FORK_ACCOUNT], features: { defaultConnected: true, reconnect: true } })]
   if (!projectId) return [injected()]
 
   return connectorsForWallets(
@@ -52,11 +53,13 @@ function createHalyardWagmiConfig() {
   const connectors = createConnectors()
 
   return createConfig({
-    chains: [bsc],
+    chains: [halyardChain],
     connectors,
+    // On a local fork, never pick up a real browser wallet: it would sign on mainnet.
+    multiInjectedProviderDiscovery: !FORK_ACCOUNT,
     ssr: true,
     transports: {
-      [bsc.id]: fallback(BSC_RPC_URLS.map(url => http(url))),
+      [halyardChain.id]: fallback(READ_RPC_URLS.map(url => http(url))),
     },
   })
 }
@@ -82,7 +85,7 @@ export function HalyardProviders({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider initialChain={bsc} modalSize="compact" theme={rainbowTheme}>
+        <RainbowKitProvider initialChain={halyardChain} modalSize="compact" theme={rainbowTheme}>
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
