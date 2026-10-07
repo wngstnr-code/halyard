@@ -1,5 +1,6 @@
 import {
   createPublicClient,
+  encodeFunctionData,
   createWalletClient,
   formatEther,
   formatUnits,
@@ -11,6 +12,7 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { bsc } from 'viem/chains'
+import { createWeb3Api } from './web3api.mjs'
 
 const HALYARD_VAULT = '0x6137aCd41F9828dE0836EA5a776e95184bF7Df10'
 const HALYARD_FROM_BLOCK = 126043949n
@@ -19,6 +21,11 @@ const LOGS_BLOCK_RANGE = 49_999n
 const LOGS_CONCURRENCY = 4
 const BSCSCAN_URL = 'https://bscscan.com'
 const WATCH_ONLY_SENDER = '0x000000000000000000000000000000000000dEaD'
+const BSTOCKS = {
+  TSLAB: '0x5b1910eAaD6450E50f816082Aa078C41F10C292f',
+  NVDAB: '0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436',
+  SPCXB: '0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1',
+}
 
 const DEFAULT_RPC = 'https://bsc-rpc.publicnode.com'
 // Public NodeReal endpoint from the BNB Chain docs. The only free one that serves wide eth_getLogs.
@@ -74,6 +81,12 @@ const logsClient = createPublicClient({
   chain: bsc,
   transport: http(process.env.BSC_LOGS_RPC_URL || DEFAULT_LOGS_RPC, { retryCount: 2 }),
 })
+// Binance Web3 API is optional: without both keys the keeper never calls it.
+const web3Key = (process.env.BINANCE_WEB3_API_KEY || '').trim()
+const web3Secret = (process.env.BINANCE_WEB3_SECRET_KEY || '').trim()
+const web3 = web3Key && web3Secret ? createWeb3Api({ apiKey: web3Key, secretKey: web3Secret }) : null
+const useWeb3Broadcast = Boolean(web3) && (process.env.BINANCE_BROADCAST ?? '1').trim() !== '0'
+
 const wallet = account
   ? createWalletClient({
       account,
@@ -167,6 +180,29 @@ async function handleAccount(user, now) {
     return { active: true, due: true, sent: false }
   }
 
+  // Second opinion from Binance. An API error never blocks the RPC path, only a FAILED verdict does.
+  let web3Text = ''
+  if (web3) {
+    try {
+      const sim = await web3.post('/api/v1/dex/pre-transaction/simulate', {
+        binanceChainId: '56',
+        evmTx: {
+          from,
+          to: HALYARD_VAULT,
+          value: '0',
+          data: encodeFunctionData({ abi: vaultAbi, functionName: 'protect', args: [user] }),
+        },
+      })
+      if (String(sim?.status).toUpperCase() === 'FAILED') {
+        log(`${label}: skipped, Web3 API simulation failed: ${sim.failReason || 'no reason given'}`)
+        return { active: true, due: true, sent: false }
+      }
+      web3Text = ` web3 sim: ${sim?.status ?? 'unknown'}`
+    } catch (e) {
+      log(`${label}: Web3 API simulation unavailable (${errText(e)})`)
+    }
+  }
+
   let gasText = ''
   try {
     const [gas, gasPrice] = await Promise.all([
@@ -186,23 +222,76 @@ async function handleAccount(user, now) {
 
   if (!wallet || dryRun) {
     const why = !wallet ? 'watch-only' : 'dry run'
-    log(`${label}: due, ${tipText}${gasText} (${why}, not sending)`)
+    log(`${label}: due, ${tipText}${gasText} (${why}, not sending)${web3Text}`)
     return { active: true, due: true, sent: false }
   }
 
   try {
-    const hash = await wallet.writeContract(request)
+    let hash
+    let via = ''
+    if (useWeb3Broadcast) {
+      try {
+        // Sign locally, the secret and the key never leave this machine; Binance only relays the raw tx.
+        const prepared = await wallet.prepareTransactionRequest({
+          account,
+          to: HALYARD_VAULT,
+          data: encodeFunctionData({ abi: vaultAbi, functionName: 'protect', args: [user] }),
+        })
+        const signedTransaction = await wallet.signTransaction(prepared)
+        const sent = await web3.post('/api/v1/dex/pre-transaction/broadcast-transaction', {
+          binanceChainId: '56',
+          signedTransaction,
+          address: account.address,
+          enableMevProtection: true,
+        })
+        if (!sent?.txHash) throw new Error('Web3 API broadcast returned no txHash')
+        hash = sent.txHash
+        via = ', via Binance Web3 API (MEV protected)'
+      } catch (e) {
+        log(`${label}: Web3 API broadcast failed, falling back to RPC (${errText(e)})`)
+      }
+    }
+    if (!hash) hash = await wallet.writeContract(request)
     const receipt = await client.waitForTransactionReceipt({ hash })
     if (receipt.status !== 'success') {
       log(`${label}: tx reverted ${BSCSCAN_URL}/tx/${hash}`)
       return { active: true, due: true, sent: false }
     }
     const paid = formatEther(receipt.gasUsed * receipt.effectiveGasPrice)
-    log(`${label}: protected ${BSCSCAN_URL}/tx/${hash}, ${tipText}, gas paid ${paid} BNB`)
+    log(`${label}: protected ${BSCSCAN_URL}/tx/${hash}, ${tipText}, gas paid ${paid} BNB${web3Text}${via}`)
     return { active: true, due: true, sent: true }
   } catch (e) {
     log(`${label}: send failed (${errText(e)})`)
     return { active: true, due: true, sent: false }
+  }
+}
+
+/** Log the bStock underlying market status from Binance. Sequential to stay under 5 requests per second. */
+async function logRwaStatus() {
+  try {
+    const parts = []
+    const notes = []
+    for (const [symbol, address] of Object.entries(BSTOCKS)) {
+      const res = await web3.get('/api/v1/dex/market/rwa/underlying-market', {
+        binanceChainId: '56',
+        tokenContractAddress: address,
+      })
+      const info = (Array.isArray(res) ? res[0] : res)?.statusInfo
+      if (!info) {
+        parts.push(`${symbol} unknown`)
+        continue
+      }
+      // marketStatus is often null (seen 2026-10-07 at 08:34 UTC); reasonCode and openState are always set.
+      const state = info.marketStatus ?? `${(info.reasonCode ?? 'unknown').toLowerCase()}${info.openState === false ? ' (closed)' : ''}`
+      parts.push(`${symbol} ${state}${info.reasonMsg ? ` (${info.reasonMsg})` : ''}`)
+      if (info.reasonCode === 'ASSET_PAUSED' || info.reasonCode === 'ASSET_LIMITED') {
+        notes.push(`${symbol} ${info.reasonCode}${info.reasonMsg ? ` ${info.reasonMsg}` : ''}`)
+      }
+    }
+    log(`rwa: ${parts.join(', ')}`)
+    for (const n of notes) log(`rwa: ${n}, oracle may reprice at the next update`)
+  } catch (e) {
+    log(`rwa: status unavailable (${errText(e)})`)
   }
 }
 
@@ -222,6 +311,8 @@ async function runPass() {
   } catch (e) {
     log(`market state unavailable (${errText(e)})`)
   }
+
+  if (web3) await logRwaStatus()
 
   try {
     await scanNewPolicies()
@@ -250,6 +341,11 @@ async function runPass() {
 
 async function main() {
   const mode = !account ? 'watch-only' : dryRun ? 'dry run' : 'live'
+  log(
+    web3
+      ? 'Binance Web3 API: on'
+      : 'Binance Web3 API: off (set BINANCE_WEB3_API_KEY and BINANCE_WEB3_SECRET_KEY to enable)'
+  )
   log(`halyard keeper starting (${mode}${account ? `, keeper ${account.address}` : ''})`)
 
   let failures = 0

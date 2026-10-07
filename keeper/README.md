@@ -41,6 +41,19 @@ Live: set `KEEPER_PRIVATE_KEY` in `.env`, then run the same commands. Set `DRY_R
 | `POLL_SECONDS` | `60` | Seconds between passes (minimum 5). |
 | `MIN_TIP_USDT` | `0` | Skip plans whose tip is below this amount. |
 | `DRY_RUN` | `0` | `1` simulates only and never sends. |
+| `BINANCE_WEB3_API_KEY` | unset | Optional Binance Web3 API key. Both keys are needed to enable the API. |
+| `BINANCE_WEB3_SECRET_KEY` | unset | Optional Binance Web3 API secret, used only to sign requests locally. |
+| `BINANCE_BROADCAST` | `1` | With the keys set, live sends use the Web3 API broadcast (MEV protected). `0` uses the RPC. |
+
+## Binance Web3 API (optional)
+
+Get keys at https://web3.binance.com/en/dev-portal and set `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_SECRET_KEY`. Without both, the keeper makes no Web3 API calls and behaves as described above. With them it adds three things:
+
+- **bStock market status:** each pass calls `rwa/underlying-market` for TSLAB, NVDAB and SPCXB and logs one `rwa:` line. If an asset is paused or limited (a corporate action or earnings), an extra line warns that the oracle may reprice.
+- **Second-opinion simulation:** for a due account that passed the RPC simulation, `pre-transaction/simulate` checks `protect(user)` again. A `FAILED` verdict skips the send. An API error is logged and the RPC path continues.
+- **MEV-protected broadcast:** in live mode the transaction is signed locally and relayed through `pre-transaction/broadcast-transaction` with MEV protection, then the keeper waits for the receipt over RPC. If the broadcast fails it falls back to a normal RPC send. Set `BINANCE_BROADCAST=0` to always use the RPC.
+
+Requests are signed with HMAC-SHA256 using the secret, which never leaves your machine. That is why the static Halyard frontend cannot use this API: it has nowhere to keep a secret.
 
 ## Safety notes
 
